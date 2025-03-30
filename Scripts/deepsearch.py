@@ -19,7 +19,7 @@ history_analys = []
 
 
 # Các hàm từ search.py
-def search_web(query, max_results=2):
+def search_web(query, max_results=1):
     results = []
     with DDGS() as ddgs:
         for r in ddgs.text(query, max_results=max_results):
@@ -96,7 +96,7 @@ def deepsearch(initial_query, max_iterations=3):
     for part in analys_question_stream:
         if part is not None:
             full_analys_question += part
-    console.print((full_analys_question), soft_wrap=True)
+    console.print(Markdown(full_analys_question), soft_wrap=True)
     history_analys.append(full_analys_question)
     ###
 
@@ -129,7 +129,7 @@ def deepsearch(initial_query, max_iterations=3):
         for result in search_results:
             content = extract_content(result['url'])
             if "Error" not in content:
-                console.print(f" [cyan]Tìm kiếm trong {result['url']}🔍\n[/cyan]")
+                console.print(f"[cyan]Tìm kiếm trong {result['url']}🔍\n[/cyan]")
                 analysis = process_link(initial_query, result['url'], content, keywords)
                 
                 final_analysis = ""
@@ -137,8 +137,9 @@ def deepsearch(initial_query, max_iterations=3):
                     if part is not None:
                         final_analysis += part
 
-                console.print(f"[magenta]Phân tích: {final_analysis}\n[/magenta]", soft_wrap=True)
+                console.print(Markdown(final_analysis), soft_wrap=True)
                 all_answers[current_query] = final_analysis
+                history_analys.append(final_analysis)
 
                 all_data += f"{result['url']}: {final_analysis}\n"
                 
@@ -170,6 +171,7 @@ def deepsearch(initial_query, max_iterations=3):
             if part is not None:
                 full_answer += part
         all_answers[current_query] = full_answer
+        history_analys.append(full_answer)
         console.print(Markdown(full_answer), soft_wrap=True, end="")
 
         new_queries_from_reasoning = extract_queries(full_answer)
@@ -209,11 +211,12 @@ def deepsearch(initial_query, max_iterations=3):
     else:
         console.print("\n[bold green]Đã hoàn thành tìm kiếm! 🌟[/bold green]")
     
-    summary_stream = summarize_answers(initial_query, all_answers)
+    summary_stream = summarize_answers(initial_query, history_analys)
     final_answer = ""
     for part in summary_stream:
         if part is not None:
             final_answer += part
+    history_analys.clear()
     return f"\n{final_answer}"
 
 

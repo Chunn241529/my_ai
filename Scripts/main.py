@@ -1,5 +1,3 @@
-import requests
-import json
 from rich.console import Console
 from rich.markdown import Markdown
 from prompt_toolkit import PromptSession
@@ -33,7 +31,7 @@ prompt_session = PromptSession(
 
 
 def main():
-    console.print("[bold cyan]Chào mừng đến với Ollama CLI![/bold cyan]")
+    console.print("[bold cyan]Chào mừng đến với TrunGPT CLI![/bold cyan]")
     console.print("Gõ '!bye' để thoát. Gõ '!deepsearch' để tìm kiếm sâu.\n")
 
     while True:
@@ -53,11 +51,11 @@ def main():
                 for part in result:
                     if part is not None:
                         full_response += part
-                        os.system("clear")
-                        console.print(Markdown(full_response), soft_wrap=True, end="")
+                        # os.system("clear")
+                        # console.print(Markdown(full_response), soft_wrap=True, end="")
 
             os.system("clear")
-            console.print(Markdown(full_response), soft_wrap=True)
+            console.print(Markdown(full_response), soft_wrap=True, end="")
             console.print("\n\n")
             message_history.append({"role": "assistant", "content": full_response})
         else:

@@ -158,8 +158,9 @@ def evaluate_answer(query, answer):
 
 def summarize_answers(query, all_answers):
     """Gửi yêu cầu đến Ollama API và yield từng phần của phản hồi."""
-    summary_prompt = f"Câu hỏi chính: {query}\nDưới đây là các thông tin đã thu thập:\n" + "\n".join([f"{q}: {a}" for q, a in all_answers.items()]) + f"\nTổng hợp thành một câu trả lời mạch lạc, logic và đầy đủ nhất cho Câu hỏi chính: {query}, tập trung vào trọng tâm."
-
+    # summary_prompt = f"Câu hỏi chính: {query}\nDưới đây là các thông tin đã thu thập:\n" + "\n".join([f"{q}: {a}" for q, a in all_answers.items()]) + f"\nTổng hợp thành một câu trả lời mạch lạc, logic và đầy đủ nhất cho Câu hỏi chính: {query}, tập trung vào trọng tâm."
+    summary_prompt = f"Câu hỏi chính: {query}\nDưới đây là các thông tin đã thu thập:\n" + "\n".join([f"{a}" for a in all_answers]) + f"\nTổng hợp thành một câu trả lời mạch lạc, logic và đầy đủ nhất cho Câu hỏi chính: {query}, tập trung vào trọng tâm."
+    # console.print(f"\n[red][DEBUG]{summary_prompt}[/red]\n")
     payload = {
         "model": model_gemma,
         "prompt": summary_prompt,
