@@ -19,7 +19,7 @@ history_analys = []
 
 
 # Các hàm từ search.py
-def search_web(query, max_results=1):
+def search_web(query, max_results=10):
     results = []
     with DDGS() as ddgs:
         for r in ddgs.text(query, max_results=max_results):
@@ -117,46 +117,84 @@ def deepsearch(initial_query, max_iterations=3):
         console.print("\n")
 
         search_results = search_web(current_query)
+        console.print(f"[cyan]Tìm thấy {len(search_results)} kết quả.[/cyan]")
+
         if not search_results:
-            all_answers[current_query] = "Không tìm thấy thông tin liên quan."
-            console.print(f"  [red]Kết quả: Không tìm thấy thông tin liên quan. 😕[/red]")
-            continue
+            console.print(f"[red]Kết quả: Không tìm thấy thông tin liên quan. 😕[/red]")
+            all_answers.clear()
+            console.clear()
+            console.print("\n")
+            console.print(f"[cyan]Tiếp tục phân tích...[/cyan]")
+            console.print("\n")
+            return deepsearch(initial_query)
 
 
         new_query_found = False
 
         # Duyệt qua từng kết quả tìm kiếm
-        for result in search_results:
+        result_processed = False
+        new_query_found = False
+    
+        for i, result in enumerate(search_results):
             content = extract_content(result['url'])
-            if "Error" not in content:
-                console.print(f"[cyan]Tìm kiếm trong {result['url']}🔍\n[/cyan]")
-                analysis = process_link(initial_query, result['url'], content, keywords)
+            if "Error" in content:
+                continue
                 
-                final_analysis = ""
-                for part in analysis:
-                    if part is not None:
-                        final_analysis += part
-
-                console.print(Markdown(final_analysis), soft_wrap=True)
-                all_answers[current_query] = final_analysis
+            console.print("\n")
+            console.print(Markdown(f"Tìm kiếm trong [{result['title']}]({result['url']})"), soft_wrap=True)
+            console.print("\n")
+            
+            # Phân tích chính bằng process_link
+            analysis = process_link(initial_query, result['url'], content, keywords)
+            
+            final_analysis = ""
+            for part in analysis:
+                if part is not None:
+                    final_analysis += part
+            
+            console.print(Markdown(final_analysis), soft_wrap=True)
+            
+            # Đánh giá thông tin bằng process_link
+            sufficiency_prompt = (
+                f"Nội dung phân tích: {final_analysis[:5000]}\n"
+                f"Câu hỏi ban đầu: {initial_query}\n"
+                f"Hãy đánh giá xem thông tin này đã đủ để trả lời câu hỏi chưa. "
+                f"Trả lời 'OK' nếu đủ, 'NOT YET' nếu chưa đủ, kèm theo lý do ngắn gọn."
+            )
+            
+            sufficiency_analysis = process_link(initial_query, result['url'], sufficiency_prompt, keywords)
+            sufficiency_result = ""
+            for part in sufficiency_analysis:
+                if part is not None:
+                    sufficiency_result += part
+            
+            console.print(f"\nĐánh giá tính đầy đủ: {sufficiency_result}\n")
+            
+            # Kiểm tra kết quả đánh giá
+            if "OK" in sufficiency_result.upper():
+                result_processed = True
+                all_answers[initial_query] = final_analysis
                 history_analys.append(final_analysis)
-
                 all_data += f"{result['url']}: {final_analysis}\n"
+            else:
+                console.print("Thông tin chưa đủ, tiếp tục tìm kiếm trong kết quả khác...")
+                result_processed = False
+            
+            # Trích xuất new_query
+            new_queries = extract_queries(analysis, history_queries)
+            if new_queries:
+                for query in new_queries:
+                    if query not in history_queries:
+                        current_queries.append(query)
+                        history_queries.add(query)
+                        console.print(f"Thêm truy vấn mới: {query}")
+                        new_query_found = True
                 
-                # Trích xuất new_query từ nội dung phân tích
-                new_queries = extract_queries(analysis, history_queries)
-                if new_queries:
-                    for query in new_queries:
-                        if query not in history_queries:
-                            current_queries.append(query)
-                            history_queries.add(query)
-                            console.print(f"Thêm truy vấn mới: {query}")
-                            new_query_found = True
-                    if new_query_found:
-                        break
 
+            
             accumulated_context += f"\nNguồn: {result['url']}\n{content}\n"
-
+            if result_processed or new_query_found:
+                break
         
         ##old
         # for result in search_results:
@@ -182,10 +220,10 @@ def deepsearch(initial_query, max_iterations=3):
         for part in evaluation_stream:
             if part is not None:
                 full_evaluation += part
-        console.print(f"[magenta]Đánh giá: {full_evaluation}[/magenta]")
+        # console.print(f"[magenta]Đánh giá: {full_evaluation}[/magenta]")
         
         if "đã đủ" in full_evaluation.lower():
-            console.print("[bold green]Thông tin đã đủ, không cần tìm thêm! 🎉[/bold green]")
+            # console.print("[bold green]Thông tin đã đủ, không cần tìm thêm! 🎉[/bold green]")
             break
         elif "chưa đủ" in full_evaluation.lower():
             new_queries_from_evaluation = extract_queries(full_evaluation)
@@ -193,11 +231,9 @@ def deepsearch(initial_query, max_iterations=3):
             relevant_query = new_queries_from_evaluation[0] if new_queries_from_evaluation else (new_queries_from_reasoning[0] if new_queries_from_reasoning else None)
             if relevant_query and relevant_query not in current_queries and relevant_query not in all_answers:
                 current_queries.append(relevant_query)
-            else:
-                console.print("[yellow]Không có truy vấn mới phù hợp để tiếp tục. 🤔[/yellow]")
             iteration += 1
         else:
-            console.print(f"[red]Đánh giá không rõ ràng: {full_evaluation} ❓[/red]")
+            # console.print(f"[red]Đánh giá không rõ ràng: {full_evaluation} ❓[/red]")
             new_queries_from_evaluation = extract_queries(full_evaluation)
             relevant_query = new_queries_from_evaluation[0] if new_queries_from_evaluation else (new_queries_from_reasoning[0] if new_queries_from_reasoning else None)
             if relevant_query and relevant_query not in current_queries and relevant_query not in all_answers:
@@ -207,9 +243,10 @@ def deepsearch(initial_query, max_iterations=3):
             iteration += 1
 
     if iteration >= max_iterations:
-        console.print(f"\n[bold red]Đã đạt giới hạn {max_iterations} lần tìm kiếm. ⏳[/bold red]")
+        # console.print(f"\n[bold red]Đã đạt giới hạn {max_iterations} lần tìm kiếm. ⏳[/bold red]")
+        console.print(f"\n")
     else:
-        console.print("\n[bold green]Đã hoàn thành tìm kiếm! 🌟[/bold green]")
+        console.print("\n[bold green]Đã hoàn thành tìm kiếm sâu! 🌟[/bold green]")
     
     summary_stream = summarize_answers(initial_query, history_analys)
     final_answer = ""
@@ -221,5 +258,5 @@ def deepsearch(initial_query, max_iterations=3):
 
 
 # #Hàm test 
-# query = "Model text to image nào phù hợp với card đồ họa 4060 8gb"
-# console.print(deepsearch(query))
+query = "Nghiên cứu Test case cho tính năng deepsearch trong AI grok 3"
+console.print(deepsearch(query))

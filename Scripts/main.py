@@ -66,8 +66,8 @@ def main():
                 for part in response_stream:
                     if part is not None:
                         full_response += part
-                        os.system("clear")
-                        console.print(Markdown(full_response), soft_wrap=True, end="")
+                        # os.system("clear")
+                        # console.print(Markdown(full_response), soft_wrap=True, end="")
 
             os.system("clear")
             console.print(Markdown(full_response), soft_wrap=True)

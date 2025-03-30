@@ -126,7 +126,19 @@ def reason_with_ollama(query, context):
 
 def evaluate_answer(query, answer):
     """Gửi yêu cầu đến Ollama API và yield từng phần của phản hồi."""
-    eval_prompt = f"Câu hỏi chính: {query}\nCâu trả lời: {answer}\nCâu trả lời này đã đủ để đưa ra câu trả lời cho Câu hỏi chính: {query} chưa? Đầu tiên, trả lời 'Đã đủ' nếu câu trả lời cung cấp đầy đủ câu trả lời cho Câu hỏi chính: {query}, hoặc 'Chưa đủ' nếu thiếu thông tin cần thiết. Nếu 'Đã đủ', không đề xuất gì thêm. Nếu 'Chưa đủ', đề xuất CHỈ 1 truy vấn cụ thể, liên quan trực tiếp đến Câu hỏi chính: {query}, trong phần 'Đề xuất truy vấn:' với định dạng:\nĐề xuất truy vấn:\n* \"truy vấn\"\nVí dụ:\nChưa đủ\nĐề xuất truy vấn:\n* \"{query}\"\nĐảm bảo luôn bắt đầu bằng 'Đã đủ' hoặc 'Chưa đủ'."
+    eval_prompt = (
+        f"Câu trả lời: {answer}\n"
+        f"Câu ban đầu: {query}\n"
+        f"Câu trả lời này đã đủ để trả lời đầy đủ Câu ban đầu chưa? "
+        f"Trả lời bắt đầu bằng 'Đã đủ' nếu thông tin đầy đủ, hoặc 'Chưa đủ' nếu thiếu thông tin cần thiết. "
+        f"Nếu 'Đã đủ', không thêm gì nữa. "
+        f"Nếu 'Chưa đủ', thêm phần 'Đề xuất truy vấn:' với CHỈ 1 truy vấn cụ thể, "
+        f"liên quan trực tiếp đến Câu hỏi chính, theo định dạng:\n"
+        f"Đề xuất truy vấn:\n* \"truy vấn cụ thể\"\n"
+        f"Ví dụ:\nChưa đủ\nĐề xuất truy vấn:\n* \"thông tin chi tiết hơn về {query}\"\n"
+        f"Đảm bảo luôn bắt đầu bằng 'Đã đủ' hoặc 'Chưa đủ'."
+    )
+
     payload = {
         "model": model_gemma,
         "prompt": eval_prompt,
@@ -262,7 +274,7 @@ def process_link(query, url, content, keywords):
     prompt = (
         f"Nội dung từ {url}:\n{content[:5000]}\n"
         f"Tập trung vào các từ khóa: {', '.join(keywords)}.\n"
-        f"Hãy nghiên cứu nội dung và trả lời câu hỏi chi tiết dựa trên thông tin có sẵn.\n"
+        f"Hãy suy luận, nghiên cứu nội dung ở ngôi thứ nhất. Sau đó trả lời câu hỏi chi tiết dựa trên thông tin có sẵn.\n"
         f"Sau đó đưa ra kết luận đầy đủ để trả lời câu hỏi {query} \n"
     )    
     
