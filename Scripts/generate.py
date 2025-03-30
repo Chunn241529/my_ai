@@ -21,7 +21,7 @@ OLLAMA_API_URL = "http://localhost:11434/api/generate"
 model_gemma = "gemma3:latest"
 model_qwen = "qwen2.5-coder:latest"
 
-model_curent = model_qwen
+model_curent = model_gemma
 
 system_prompt = f"""
 Bạn là TrunGPT, một trợ lý AI chuyên phân tích ngôn ngữ, cung cấp thông tin chính xác, logic và hữu ích nhất cho người dùng.  
@@ -92,10 +92,57 @@ def query_ollama(prompt, model=model_curent):
         yield None
 
 
+def analys_question(query):
+    """Gửi yêu cầu đến Ollama API và yield từng phần của phản hồi."""
+    prompt = f"""
+    Phân tích câu hỏi: '{query}'.  
+    - Không trả lời trực tiếp câu hỏi.  
+    - Chỉ tập trung vào:  
+      * Ý định của người dùng (họ muốn gì?).  
+      * Các cách hiểu khác nhau của câu hỏi.  
+    - Đi thẳng vào phân tích, không thêm lời nhận xét hoặc mở đầu thừa thãi.  
+    - Giữ giọng điệu tự nhiên, ngắn gọn. Ví dụ: 'Câu "{query}" cho thấy người dùng muốn [ý định]. Nó cũng có thể được hiểu là [cách hiểu khác].'\n
+    - Nếu câu hỏi Không khả thi, hãy trả lời "Khó nha bro..."
+    """
+    payload = {
+        "model": model_curent,
+        "prompt": prompt,
+        "stream": True,
+        "options": {
+            "num_predict": 1000,
+            "top_k": 20,
+            "top_p": 0.9,
+            "min_p": 0.0,
+            "temperature": 0.7,  # Giảm để giảm ngẫu nhiên
+        }
+    }
+
+    try:
+        response = requests.post(OLLAMA_API_URL, json=payload, stream=True)
+        response.raise_for_status()
+        full_response = ""
+        for line in response.iter_lines():
+            if line:
+                json_data = json.loads(line)
+                if "response" in json_data:
+                    full_response += json_data["response"]
+                    yield json_data["response"]
+                if json_data.get("done", False):
+                    break
+    except requests.RequestException as e:
+        print(f"Lỗi khi gọi API Ollama: {e}")
+        yield None
+
 
 def reason_with_ollama(query, context):
     """Gửi yêu cầu đến Ollama API và yield từng phần của phản hồi."""
-    prompt = f"Câu hỏi chính: {query}\nThông tin: {context}\nHãy suy luận và trả lời trực tiếp câu hỏi chính {query}. Tập trung hoàn toàn vào trọng tâm câu hỏi, bỏ qua thông tin không liên quan."
+    prompt = (
+        f"Câu hỏi chính: {query}\n"
+        f"Thông tin: {context}\n"
+        f"Hãy reasoning và trả lời trực tiếp câu hỏi chính '{query}' dựa trên thông tin được cung cấp. Thực hiện theo các bước sau:\n"
+        f"1. Phân tích thông tin: Xác định các dữ kiện quan trọng liên quan trực tiếp đến câu hỏi.\n"
+        f"2. Suy luận logic: Dựa trên các dữ kiện đã phân tích, đưa ra lập luận hợp lý để trả lời câu hỏi.\n"
+    )
     payload = {
         "model": model_curent,
         "prompt": prompt,
@@ -105,7 +152,7 @@ def reason_with_ollama(query, context):
             "top_k": 20,
             "top_p": 0.9,
             "min_p": 0.0,
-            "temperature": 0.9,
+            "temperature": 0.7,  # Giảm temperature để tăng tính logic và chính xác
         }
     }
 
@@ -130,14 +177,13 @@ def evaluate_answer(query, answer):
     eval_prompt = (
         f"Câu trả lời: {answer}\n"
         f"Câu ban đầu: {query}\n"
-        f"Câu trả lời này đã đủ để trả lời đầy đủ Câu ban đầu chưa? "
-        f"Trả lời bắt đầu bằng 'Đã đủ' nếu thông tin đầy đủ, hoặc 'Chưa đủ' nếu thiếu thông tin cần thiết. "
-        f"Nếu 'Đã đủ', không thêm gì nữa. "
-        f"Nếu 'Chưa đủ', thêm phần 'Đề xuất truy vấn:' với CHỈ 1 truy vấn cụ thể, "
-        f"liên quan trực tiếp đến Câu hỏi chính, theo định dạng:\n"
-        f"Đề xuất truy vấn:\n* \"truy vấn cụ thể\"\n"
-        f"Ví dụ:\nChưa đủ\nĐề xuất truy vấn:\n* \"thông tin chi tiết hơn về {query}\"\n"
-        f"Đảm bảo luôn bắt đầu bằng 'Đã đủ' hoặc 'Chưa đủ'."
+        f"Câu trả lời này đã đủ để trả lời đầy đủ Câu ban đầu chưa? \n"
+        f"Trả lời bắt đầu bằng 'Đã đủ' nếu thông tin đầy đủ, hoặc 'Chưa đủ' nếu thiếu thông tin cần thiết. \n"
+        f"Nếu 'Đã đủ', không thêm gì nữa. \n"
+        f"Nếu 'Chưa đủ', thêm phần 'Đề xuất truy vấn:' với CHỈ 1 truy vấn cụ thể bằng tiếng Anh, ngắn gọn, dạng câu lệnh tìm kiếm (không phải câu hỏi), liên quan trực tiếp đến Câu ban đầu, theo định dạng:\n"
+        f"Đề xuất truy vấn:\n* \"từ khóa hoặc cụm từ tìm kiếm cụ thể\"\n"
+        f"Ví dụ:\nChưa đủ\nĐề xuất truy vấn:\n* \"details about {query}\"\n"
+        f"Đảm bảo luôn bắt đầu bằng 'Đã đủ' hoặc 'Chưa đủ', và truy vấn phải là cụm từ tìm kiếm, không phải câu hỏi."
     )
 
     payload = {
@@ -173,11 +219,9 @@ def summarize_answers(query, all_answers):
     """Gửi yêu cầu đến Ollama API và yield từng phần của phản hồi."""
     summary_prompt = f"""
     Câu hỏi chính: '{query}'  
-    Các thông tin đã thu thập:  
-    {'\n'.join([f'- {a}' for a in all_answers])}  
-    Nhiệm vụ: Tổng hợp tất cả thông tin trên thành một câu trả lời ngắn gọn, mạch lạc và logic nhất cho câu hỏi '{query}'.  
-    - Tập trung vào trọng tâm của câu hỏi.  
-    - Tránh lặp lại không cần thiết, chỉ giữ những điểm chính.  
+    Các thông tin đã thu thập: {'\n'.join([f'- {a}' for a in all_answers])}  
+    Tổng hợp tất cả thông tin trên thành một câu trả lời đầy đủ nhất cho câu hỏi '{query}'.  
+    - Tập trung vào trọng tâm của câu hỏi.   
     - Sử dụng giọng điệu tự nhiên, dễ hiểu.  
     Ví dụ: Nếu câu hỏi là 'Làm sao để học tiếng Anh nhanh?' và thông tin gồm: 'Học từ vựng mỗi ngày', 'Xem phim tiếng Anh', thì tổng hợp thành: 'Để học tiếng Anh nhanh, bạn nên học từ vựng mỗi ngày và xem phim tiếng Anh thường xuyên.'  
     """
@@ -186,52 +230,11 @@ def summarize_answers(query, all_answers):
         "prompt": summary_prompt,
         "stream": True,
         "options": {
-            "num_predict": 5000,  # Giới hạn độ dài để ngắn gọn
+            "num_predict": -1,  # Giới hạn độ dài để ngắn gọn
             "top_k": 20,
             "top_p": 0.9,
             "min_p": 0.0,
-            "temperature": 0.4,  # Giảm để tăng tính logic
-        }
-    }
-
-    try:
-        response = requests.post(OLLAMA_API_URL, json=payload, stream=True)
-        response.raise_for_status()
-        full_response = ""
-        for line in response.iter_lines():
-            if line:
-                json_data = json.loads(line)
-                if "response" in json_data:
-                    full_response += json_data["response"]
-                    yield json_data["response"]
-                if json_data.get("done", False):
-                    break
-    except requests.RequestException as e:
-        print(f"Lỗi khi gọi API Ollama: {e}")
-        yield None
-
-def analys_question(query):
-    """Gửi yêu cầu đến Ollama API và yield từng phần của phản hồi."""
-    prompt = f"""
-    Phân tích câu hỏi: '{query}'.  
-    - Không trả lời trực tiếp câu hỏi.  
-    - Chỉ tập trung vào:  
-      * Ý định của người dùng (họ muốn gì?).  
-      * Các cách hiểu khác nhau của câu hỏi.  
-    - Đi thẳng vào phân tích, không thêm lời nhận xét hoặc mở đầu thừa thãi.  
-    - Giữ giọng điệu tự nhiên, ngắn gọn.  
-    Ví dụ: 'Câu "{query}" cho thấy người dùng muốn [ý định]. Nó cũng có thể được hiểu là [cách hiểu khác].'  
-    """
-    payload = {
-        "model": model_curent,
-        "prompt": prompt,
-        "stream": True,
-        "options": {
-            "num_predict": 1000,
-            "top_k": 20,
-            "top_p": 0.9,
-            "min_p": 0.0,
-            "temperature": 0.7,  # Giảm để giảm ngẫu nhiên
+            "temperature": 0.5,  # Giảm để tăng tính logic
         }
     }
 
@@ -291,8 +294,10 @@ def process_link(query, url, content, keywords):
     prompt = (
         f"Nội dung từ {url}:\n{content[:12000]}\n"
         f"Tập trung vào các từ khóa: {', '.join(keywords)}.\n"
-        f"Hãy suy luận, nghiên cứu nội dung và trả lời câu hỏi chi tiết dựa trên thông tin có sẵn.\n"
-        f"Sau đó đưa ra kết luận đầy đủ để trả lời câu hỏi {query} \n"
+        f"Hãy suy luận và trả lời câu hỏi '{query}' dựa trên nội dung được cung cấp, thực hiện theo các bước sau:\n"
+        f"1. Phân tích nội dung: Xác định các thông tin quan trọng liên quan đến từ khóa và câu hỏi. Lưu ý các dữ kiện cụ thể, số liệu, hoặc ý chính.\n"
+        f"2. Liên kết với từ khóa: Đánh giá cách các từ khóa xuất hiện trong nội dung và ý nghĩa của chúng đối với câu hỏi.\n"
+        f"3. Suy luận logic: Dựa trên thông tin đã phân tích, đưa ra lập luận hợp lý để giải quyết câu hỏi. Nếu cần, hãy so sánh, đối chiếu hoặc suy ra từ các dữ kiện.\n"
     )    
     
     payload = {
@@ -300,11 +305,11 @@ def process_link(query, url, content, keywords):
         "prompt": prompt,
         "stream": True,
         "options": {
-            "num_predict": -1,
+            "num_predict": 4000,
             "top_k": 20,
             "top_p": 0.9,
             "min_p": 0.0,
-            "temperature": 0.9,
+            "temperature": 0.5,  # Giảm temperature để tăng tính logic
         }
     }
 

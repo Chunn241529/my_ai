@@ -22,7 +22,7 @@ prompt_style = Style.from_dict({
 prompt_session = PromptSession(
     "\n>>> ",
     style=prompt_style,
-    prompt_continuation="... "  # Tùy chọn: Dòng tiếp theo nếu nhập nhiều dòng
+    prompt_continuation=""  # Tùy chọn: Dòng tiếp theo nếu nhập nhiều dòng
 )
 
 # URL của Ollama API
@@ -32,7 +32,7 @@ prompt_session = PromptSession(
 def main():
     console.clear()
     console.print("[bold cyan]Chào mừng đến với TrunGPT CLI![/bold cyan]")
-    console.print("Gõ '!bye' để thoát. Gõ '!deepsearch' để tìm kiếm sâu.\n")
+    console.print("Gõ '!bye' để thoát. Gõ '!ds' để tìm kiếm sâu.\n")
 
     while True:
         user_input = prompt_session.prompt()
@@ -41,10 +41,10 @@ def main():
             break
 
         # Kiểm tra lệnh !deepsearch
-        if user_input.lower().startswith("!deepsearch"):
-            query = user_input[len("!deepsearch"):].strip()
+        if user_input.lower().startswith("!ds"):
+            query = user_input[len("!ds"):].strip()
             if not query:
-                console.print("[bold red]Vui lòng nhập câu hỏi sau '!deepsearch'. Ví dụ: !deepsearch Câu hỏi của bạn[/bold red]")
+                console.print("[bold red]Vui lòng nhập câu hỏi sau '!ds'. Ví dụ: !ds Câu hỏi của bạn[/bold red]")
                 continue
             result = deepsearch(query)
             full_response = ""

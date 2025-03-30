@@ -18,8 +18,18 @@ console = Console()
 history_analys = []
 
 
+import random                                                                  
+                                                                            
+def random_number():                                                           
+    """                                                                          
+    Hàm này tạo ra một số ngẫu nhiên từ 10 đến 25.                               
+    """                                                                          
+    return random.randint(10, 25)     
+
+max_results = random_number() # number of ressults 
+
 # Các hàm từ search.py
-def search_web(query, max_results=10):
+def search_web(query, max_results=max_results):
     results = []
     with DDGS() as ddgs:
         for r in ddgs.text(query, max_results=max_results):
@@ -108,6 +118,7 @@ def deepsearch(initial_query, max_iterations=3):
         for part in analys_prompt_stream:
             if part is not None:
                 full_analys_prompt += part
+    
     current_queries.append(full_analys_prompt)
     ###
 
@@ -119,14 +130,19 @@ def deepsearch(initial_query, max_iterations=3):
         console.print("\n")
 
         search_results = search_web(current_query)
-        console.print(f"[cyan]Tìm thấy {len(search_results)} kết quả.[/cyan]")
+        console.print(f"[yellow]Tìm thấy {len(search_results)} kết quả.[/yellow]")
 
         if not search_results:
-            console.print(f"[red]Kết quả: Không tìm thấy thông tin liên quan. 😕[/red]")
             all_answers.clear()
-            console.clear()
             console.print("\n")
-            console.print(f"[red]Không tìm thấy thông tin, phân tích lại...[/red]")
+            console.print(f"[red]Không tìm thấy thông tin, để tôi phân tích lại câu hỏi...[/red]")
+            console.print("\n")
+            return deepsearch(initial_query)
+        
+        if any(result.get('title', '').startswith('EOF') for result in search_results):
+            all_answers.clear()
+            console.print("\n")
+            console.print(f"[red]Không tìm thấy thông tin, để tôi phân tích lại câu hỏi...[/red]")
             console.print("\n")
             return deepsearch(initial_query)
 
@@ -141,7 +157,6 @@ def deepsearch(initial_query, max_iterations=3):
             content = extract_content(result['url'])
             if "Error" in content:
                 continue
-                
             console.print("\n")
             console.print(Markdown(f"Tìm kiếm trong [{result['title']}]({result['url']})"), soft_wrap=True)
             console.print("\n")
@@ -171,7 +186,6 @@ def deepsearch(initial_query, max_iterations=3):
                     if part is not None:
                         sufficiency_result += part
             
-            console.print(f"\nĐánh giá tính đầy đủ: {sufficiency_result}\n")
             
             # Kiểm tra kết quả đánh giá
             if "OK" in sufficiency_result.upper():
@@ -180,7 +194,6 @@ def deepsearch(initial_query, max_iterations=3):
                 history_analys.append(final_analysis)
                 all_data += f"{result['url']}: {final_analysis}\n"
             else:
-                console.print("Thông tin chưa đủ, tiếp tục tìm kiếm trong kết quả khác...")
                 result_processed = False
             
             # Trích xuất new_query
@@ -199,11 +212,6 @@ def deepsearch(initial_query, max_iterations=3):
             if result_processed or new_query_found:
                 break
         
-        ##old
-        # for result in search_results:
-        #     content = extract_content(result['url'])
-        #     accumulated_context += f"\nNguồn: {result['url']}\n{content}\n"
-
 
         # Thu thập toàn bộ phản hồi từ reason_with_ollama
         answer_stream = reason_with_ollama(initial_query, accumulated_context)
@@ -225,20 +233,16 @@ def deepsearch(initial_query, max_iterations=3):
             for part in evaluation_stream:
                 if part is not None:
                     full_evaluation += part
-        # console.print(f"[magenta]Đánh giá: {full_evaluation}[/magenta]")
         
         if "đã đủ" in full_evaluation.lower():
-            # console.print("[bold green]Thông tin đã đủ, không cần tìm thêm! 🎉[/bold green]")
             break
         elif "chưa đủ" in full_evaluation.lower():
             new_queries_from_evaluation = extract_queries(full_evaluation)
-            # console.print(f"  [blue]Truy vấn từ đánh giá: {new_queries_from_evaluation} 🔄[/blue]")  # Ẩn dòng này
             relevant_query = new_queries_from_evaluation[0] if new_queries_from_evaluation else (new_queries_from_reasoning[0] if new_queries_from_reasoning else None)
             if relevant_query and relevant_query not in current_queries and relevant_query not in all_answers:
                 current_queries.append(relevant_query)
             iteration += 1
         else:
-            # console.print(f"[red]Đánh giá không rõ ràng: {full_evaluation} ❓[/red]")
             new_queries_from_evaluation = extract_queries(full_evaluation)
             relevant_query = new_queries_from_evaluation[0] if new_queries_from_evaluation else (new_queries_from_reasoning[0] if new_queries_from_reasoning else None)
             if relevant_query and relevant_query not in current_queries and relevant_query not in all_answers:
@@ -246,13 +250,13 @@ def deepsearch(initial_query, max_iterations=3):
             else:
                 current_queries.append(current_query)
             iteration += 1
-
+ 
     if iteration >= max_iterations:
-        # console.print(f"\n[bold red]Đã đạt giới hạn {max_iterations} lần tìm kiếm. ⏳[/bold red]")
         console.print(f"\n")
     else:
-        console.print("\n[bold green]Đã hoàn thành tìm kiếm sâu! 🌟[/bold green]")
-    
+        console.print("\n[bold green]Kết thúc DeepSearch! 🌟\n[/bold green]")
+
+
     summary_stream = summarize_answers(initial_query, history_analys)
     final_answer = ""
     with console.status("[bold green][/bold green]", spinner="dots"):
@@ -263,10 +267,16 @@ def deepsearch(initial_query, max_iterations=3):
     history_queries.clear()
     history_keywords.clear()
     all_answers.clear()
+    console.clear()
     return f"\n{final_answer}"
 
+                                                           
+                                                                                                  
+                                                                                                                       
+                                                            
+                     
 
 # #Hàm test
 # if __name__ == "__main__":
-#     query = "Nghiên cứu tính năng deepsearch trong AI grok 3"
+#     query = "Tôi muốn đi du lịch Nhật Bản và là lần đầu tôi đi. Hãy cho tôi chút kinh nghiệm"
 #     console.print(deepsearch(query))
