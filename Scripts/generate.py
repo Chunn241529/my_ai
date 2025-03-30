@@ -21,6 +21,7 @@ OLLAMA_API_URL = "http://localhost:11434/api/generate"
 model_gemma = "gemma3:latest"
 model_qwen = "qwen2.5-coder:latest"
 
+model_curent = model_qwen
 
 system_prompt = f"""
 Bạn là TrunGPT, một trợ lý AI chuyên phân tích ngôn ngữ, cung cấp thông tin chính xác, logic và hữu ích nhất cho người dùng.  
@@ -52,7 +53,7 @@ message_history = []
 message_history.append({"role": "system", "content": system_prompt})
 
 
-def query_ollama(prompt, model=model_gemma):
+def query_ollama(prompt, model=model_curent):
     """Gửi yêu cầu đến Ollama API và yield từng phần của phản hồi."""
     clean_prompt, images_base64 = preprocess_prompt(prompt)
     process_shutdown_command(clean_prompt)
@@ -96,7 +97,7 @@ def reason_with_ollama(query, context):
     """Gửi yêu cầu đến Ollama API và yield từng phần của phản hồi."""
     prompt = f"Câu hỏi chính: {query}\nThông tin: {context}\nHãy suy luận và trả lời trực tiếp câu hỏi chính {query}. Tập trung hoàn toàn vào trọng tâm câu hỏi, bỏ qua thông tin không liên quan."
     payload = {
-        "model": model_gemma,
+        "model": model_curent,
         "prompt": prompt,
         "stream": True,
         "options": {
@@ -140,7 +141,7 @@ def evaluate_answer(query, answer):
     )
 
     payload = {
-        "model": model_gemma,
+        "model": model_curent,
         "prompt": eval_prompt,
         "stream": True,
         "options": {
@@ -170,19 +171,26 @@ def evaluate_answer(query, answer):
 
 def summarize_answers(query, all_answers):
     """Gửi yêu cầu đến Ollama API và yield từng phần của phản hồi."""
-    # summary_prompt = f"Câu hỏi chính: {query}\nDưới đây là các thông tin đã thu thập:\n" + "\n".join([f"{q}: {a}" for q, a in all_answers.items()]) + f"\nTổng hợp thành một câu trả lời mạch lạc, logic và đầy đủ nhất cho Câu hỏi chính: {query}, tập trung vào trọng tâm."
-    summary_prompt = f"Câu hỏi chính: {query}\nDưới đây là các thông tin đã thu thập:\n" + "\n".join([f"{a}" for a in all_answers]) + f"\nTổng hợp thành một câu trả lời mạch lạc, logic và đầy đủ nhất cho Câu hỏi chính: {query}, tập trung vào trọng tâm."
-    # console.print(f"\n[red][DEBUG]{summary_prompt}[/red]\n")
+    summary_prompt = f"""
+    Câu hỏi chính: '{query}'  
+    Các thông tin đã thu thập:  
+    {'\n'.join([f'- {a}' for a in all_answers])}  
+    Nhiệm vụ: Tổng hợp tất cả thông tin trên thành một câu trả lời ngắn gọn, mạch lạc và logic nhất cho câu hỏi '{query}'.  
+    - Tập trung vào trọng tâm của câu hỏi.  
+    - Tránh lặp lại không cần thiết, chỉ giữ những điểm chính.  
+    - Sử dụng giọng điệu tự nhiên, dễ hiểu.  
+    Ví dụ: Nếu câu hỏi là 'Làm sao để học tiếng Anh nhanh?' và thông tin gồm: 'Học từ vựng mỗi ngày', 'Xem phim tiếng Anh', thì tổng hợp thành: 'Để học tiếng Anh nhanh, bạn nên học từ vựng mỗi ngày và xem phim tiếng Anh thường xuyên.'  
+    """
     payload = {
-        "model": model_gemma,
+        "model": model_curent,
         "prompt": summary_prompt,
         "stream": True,
         "options": {
-            "num_predict": -1,
+            "num_predict": 5000,  # Giới hạn độ dài để ngắn gọn
             "top_k": 20,
             "top_p": 0.9,
             "min_p": 0.0,
-            "temperature": 0.9,
+            "temperature": 0.4,  # Giảm để tăng tính logic
         }
     }
 
@@ -204,17 +212,26 @@ def summarize_answers(query, all_answers):
 
 def analys_question(query):
     """Gửi yêu cầu đến Ollama API và yield từng phần của phản hồi."""
-    prompt = f"Phân tích câu hỏi {query}. Không cần trả lời câu hỏi. *Ví dụ: Ah, người dùng đang muốn '{query}'. Đầu tiên chúng ta sẽ phân tích kỹ câu hỏi của người dùng...*"
+    prompt = f"""
+    Phân tích câu hỏi: '{query}'.  
+    - Không trả lời trực tiếp câu hỏi.  
+    - Chỉ tập trung vào:  
+      * Ý định của người dùng (họ muốn gì?).  
+      * Các cách hiểu khác nhau của câu hỏi.  
+    - Đi thẳng vào phân tích, không thêm lời nhận xét hoặc mở đầu thừa thãi.  
+    - Giữ giọng điệu tự nhiên, ngắn gọn.  
+    Ví dụ: 'Câu "{query}" cho thấy người dùng muốn [ý định]. Nó cũng có thể được hiểu là [cách hiểu khác].'  
+    """
     payload = {
-        "model": model_gemma,
+        "model": model_curent,
         "prompt": prompt,
         "stream": True,
         "options": {
-            "num_predict": 4060,
+            "num_predict": 1000,
             "top_k": 20,
             "top_p": 0.9,
             "min_p": 0.0,
-            "temperature": 1,
+            "temperature": 0.7,  # Giảm để giảm ngẫu nhiên
         }
     }
 
@@ -240,7 +257,7 @@ def analys_prompt(query):
     prompt = f"From the given query, translate it to English if necessary, then provide exactly one concise English search query (no explanations, no extra options) that a user would use to find relevant information on the web. Query: {query}"
 
     payload = {
-        "model": model_gemma,
+        "model": model_curent,
         "prompt": prompt,
         "stream": True,
         "options": {
@@ -272,14 +289,14 @@ def analys_prompt(query):
 def process_link(query, url, content, keywords):
     """Gửi yêu cầu đến Ollama API và yield từng phần của phản hồi."""
     prompt = (
-        f"Nội dung từ {url}:\n{content[:5000]}\n"
+        f"Nội dung từ {url}:\n{content[:12000]}\n"
         f"Tập trung vào các từ khóa: {', '.join(keywords)}.\n"
-        f"Hãy suy luận, nghiên cứu nội dung ở ngôi thứ nhất. Sau đó trả lời câu hỏi chi tiết dựa trên thông tin có sẵn.\n"
+        f"Hãy suy luận, nghiên cứu nội dung và trả lời câu hỏi chi tiết dựa trên thông tin có sẵn.\n"
         f"Sau đó đưa ra kết luận đầy đủ để trả lời câu hỏi {query} \n"
     )    
     
     payload = {
-        "model": model_gemma,
+        "model": model_curent,
         "prompt": prompt,
         "stream": True,
         "options": {
@@ -317,7 +334,7 @@ def generate_keywords(query, context="", history_keywords=None):
         f"Trả về dưới dạng danh sách: * \"từ khóa 1\" * \"từ khóa 2\" * \"từ khóa 3\"."
     )
     payload = {
-        "model": model_gemma,
+        "model": model_curent,
         "prompt": prompt,
         "stream": True,
         "options": {

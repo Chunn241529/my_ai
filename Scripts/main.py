@@ -3,7 +3,6 @@ from rich.markdown import Markdown
 from prompt_toolkit import PromptSession
 from prompt_toolkit.styles import Style
 
-import os
 # import scripts
 from commands import *
 from file import *
@@ -31,11 +30,13 @@ prompt_session = PromptSession(
 
 
 def main():
+    console.clear()
     console.print("[bold cyan]Chào mừng đến với TrunGPT CLI![/bold cyan]")
     console.print("Gõ '!bye' để thoát. Gõ '!deepsearch' để tìm kiếm sâu.\n")
 
     while True:
         user_input = prompt_session.prompt()
+        console.print("\n")
         if user_input.lower() == "!bye":
             break
 
@@ -54,7 +55,7 @@ def main():
                         # os.system("clear")
                         # console.print(Markdown(full_response), soft_wrap=True, end="")
 
-            os.system("clear")
+            # os.system("clear")
             console.print(Markdown(full_response), soft_wrap=True, end="")
             console.print("\n\n")
             message_history.append({"role": "assistant", "content": full_response})
@@ -69,7 +70,7 @@ def main():
                         # os.system("clear")
                         # console.print(Markdown(full_response), soft_wrap=True, end="")
 
-            os.system("clear")
+            # os.system("clear")
             console.print(Markdown(full_response), soft_wrap=True)
             console.print("\n\n")
             message_history.append({"role": "assistant", "content": full_response})

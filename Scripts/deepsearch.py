@@ -93,9 +93,10 @@ def deepsearch(initial_query, max_iterations=3):
     ### phân tích câu hỏi
     analys_question_stream = analys_question(initial_query)
     full_analys_question=""
-    for part in analys_question_stream:
-        if part is not None:
-            full_analys_question += part
+    with console.status("[bold green][/bold green]", spinner="dots"):
+        for part in analys_question_stream:
+            if part is not None:
+                full_analys_question += part
     console.print(Markdown(full_analys_question), soft_wrap=True)
     history_analys.append(full_analys_question)
     ###
@@ -103,9 +104,10 @@ def deepsearch(initial_query, max_iterations=3):
     ### phân tích tìm kiếm tạo câu truy vấn
     analys_prompt_stream = analys_prompt(history_analys)
     full_analys_prompt=""
-    for part in analys_prompt_stream:
-        if part is not None:
-            full_analys_prompt += part
+    with console.status("[bold green][/bold green]", spinner="dots"):
+        for part in analys_prompt_stream:
+            if part is not None:
+                full_analys_prompt += part
     current_queries.append(full_analys_prompt)
     ###
 
@@ -124,7 +126,7 @@ def deepsearch(initial_query, max_iterations=3):
             all_answers.clear()
             console.clear()
             console.print("\n")
-            console.print(f"[cyan]Tiếp tục phân tích...[/cyan]")
+            console.print(f"[red]Không tìm thấy thông tin, phân tích lại...[/red]")
             console.print("\n")
             return deepsearch(initial_query)
 
@@ -164,9 +166,10 @@ def deepsearch(initial_query, max_iterations=3):
             
             sufficiency_analysis = process_link(initial_query, result['url'], sufficiency_prompt, keywords)
             sufficiency_result = ""
-            for part in sufficiency_analysis:
-                if part is not None:
-                    sufficiency_result += part
+            with console.status("[bold green][/bold green]", spinner="dots"):
+                for part in sufficiency_analysis:
+                    if part is not None:
+                        sufficiency_result += part
             
             console.print(f"\nĐánh giá tính đầy đủ: {sufficiency_result}\n")
             
@@ -205,9 +208,10 @@ def deepsearch(initial_query, max_iterations=3):
         # Thu thập toàn bộ phản hồi từ reason_with_ollama
         answer_stream = reason_with_ollama(initial_query, accumulated_context)
         full_answer = ""
-        for part in answer_stream:
-            if part is not None:
-                full_answer += part
+        with console.status("[bold green][/bold green]", spinner="dots"):
+            for part in answer_stream:
+                if part is not None:
+                    full_answer += part
         all_answers[current_query] = full_answer
         history_analys.append(full_answer)
         console.print(Markdown(full_answer), soft_wrap=True, end="")
@@ -217,9 +221,10 @@ def deepsearch(initial_query, max_iterations=3):
         # Thu thập toàn bộ phản hồi từ evaluate_answer
         evaluation_stream = evaluate_answer(initial_query, full_answer)
         full_evaluation = ""
-        for part in evaluation_stream:
-            if part is not None:
-                full_evaluation += part
+        with console.status("[bold green][/bold green]", spinner="dots"):
+            for part in evaluation_stream:
+                if part is not None:
+                    full_evaluation += part
         # console.print(f"[magenta]Đánh giá: {full_evaluation}[/magenta]")
         
         if "đã đủ" in full_evaluation.lower():
@@ -250,13 +255,18 @@ def deepsearch(initial_query, max_iterations=3):
     
     summary_stream = summarize_answers(initial_query, history_analys)
     final_answer = ""
-    for part in summary_stream:
-        if part is not None:
-            final_answer += part
+    with console.status("[bold green][/bold green]", spinner="dots"):
+        for part in summary_stream:
+            if part is not None:
+                final_answer += part
     history_analys.clear()
+    history_queries.clear()
+    history_keywords.clear()
+    all_answers.clear()
     return f"\n{final_answer}"
 
 
-# #Hàm test 
-query = "Nghiên cứu Test case cho tính năng deepsearch trong AI grok 3"
-console.print(deepsearch(query))
+# #Hàm test
+# if __name__ == "__main__":
+#     query = "Nghiên cứu tính năng deepsearch trong AI grok 3"
+#     console.print(deepsearch(query))
