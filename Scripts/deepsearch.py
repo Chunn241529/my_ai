@@ -3,28 +3,23 @@ from duckduckgo_search import DDGS
 from bs4 import BeautifulSoup
 
 import requests
-import json
 from rich.markdown import Markdown
+
 
 
 # import scripts
 from commands import *
 from file import *
 from image import *
+from generate import *
 
 # Khởi tạo console từ Rich
 console = Console()
+history_analys = []
 
-
-# URL của Ollama API
-OLLAMA_API_URL = "http://localhost:11434/api/generate"
-
-
-model_gemma = "gemma3:latest"
-model_qwen = "qwen2.5-coder:latest"
 
 # Các hàm từ search.py
-def search_web(query, max_results=5):
+def search_web(query, max_results=2):
     results = []
     with DDGS() as ddgs:
         for r in ddgs.text(query, max_results=max_results):
@@ -46,185 +41,73 @@ def extract_content(url):
         return f"Error fetching {url}: {str(e)}"
 
 
-
-
-def reason_with_ollama(query, context):
-    """Gửi yêu cầu đến Ollama API và yield từng phần của phản hồi."""
-    prompt = f"Câu hỏi chính: {query}\nThông tin: {context}\nHãy suy luận và trả lời trực tiếp câu hỏi chính {query}. Tập trung hoàn toàn vào trọng tâm câu hỏi, bỏ qua thông tin không liên quan."
-    payload = {
-        "model": model_gemma,
-        "prompt": prompt,
-        "stream": True,
-        "options": {
-            "num_predict": -1,
-            "top_k": 20,
-            "top_p": 0.9,
-            "min_p": 0.0,
-            "temperature": 0.9,
-        }
-    }
-
+def extract_queries(text, history_queries=None):
+    if history_queries is None:
+        history_queries = set()
+    # Nếu text không hỗ trợ split(), nghĩa là nó không phải là chuỗi, ta sẽ tiêu thụ nó
     try:
-        response = requests.post(OLLAMA_API_URL, json=payload, stream=True)
-        response.raise_for_status()
-        full_response = ""
-        for line in response.iter_lines():
-            if line:
-                json_data = json.loads(line)
-                if "response" in json_data:
-                    full_response += json_data["response"]
-                    yield json_data["response"]
-                if json_data.get("done", False):
-                    break
-    except requests.RequestException as e:
-        print(f"Lỗi khi gọi API Ollama: {e}")
-        yield None
+        lines = text.split('\n')
+    except AttributeError:
+        # Nếu text là generator, chuyển nó thành chuỗi
+        text = ''.join(text)
+        lines = text.split('\n')
 
-def evaluate_answer(query, answer):
-    """Gửi yêu cầu đến Ollama API và yield từng phần của phản hồi."""
-    eval_prompt = f"Câu hỏi chính: {query}\nCâu trả lời: {answer}\nCâu trả lời này đã đủ để đưa ra câu trả lời cho Câu hỏi chính: {query} chưa? Đầu tiên, trả lời 'Đã đủ' nếu câu trả lời cung cấp đầy đủ câu trả lời cho Câu hỏi chính: {query}, hoặc 'Chưa đủ' nếu thiếu thông tin cần thiết. Nếu 'Đã đủ', không đề xuất gì thêm. Nếu 'Chưa đủ', đề xuất CHỈ 1 truy vấn cụ thể, liên quan trực tiếp đến Câu hỏi chính: {query}, trong phần 'Đề xuất truy vấn:' với định dạng:\nĐề xuất truy vấn:\n* \"truy vấn\"\nVí dụ:\nChưa đủ\nĐề xuất truy vấn:\n* \"{query}\"\nĐảm bảo luôn bắt đầu bằng 'Đã đủ' hoặc 'Chưa đủ'."
-    payload = {
-        "model": model_gemma,
-        "prompt": eval_prompt,
-        "stream": True,
-        "options": {
-            "num_predict": -1,
-            "top_k": 20,
-            "top_p": 0.9,
-            "min_p": 0.0,
-            "temperature": 0.9,
-        }
-    }
-
-    try:
-        response = requests.post(OLLAMA_API_URL, json=payload, stream=True)
-        response.raise_for_status()
-        full_response = ""
-        for line in response.iter_lines():
-            if line:
-                json_data = json.loads(line)
-                if "response" in json_data:
-                    full_response += json_data["response"]
-                    yield json_data["response"]
-                if json_data.get("done", False):
-                    break
-    except requests.RequestException as e:
-        print(f"Lỗi khi gọi API Ollama: {e}")
-        yield None
-
-def summarize_answers(query, all_answers):
-    """Gửi yêu cầu đến Ollama API và yield từng phần của phản hồi."""
-    summary_prompt = f"Câu hỏi chính: {query}\nDưới đây là các thông tin đã thu thập:\n" + "\n".join([f"{q}: {a}" for q, a in all_answers.items()]) + f"\nTổng hợp thành một câu trả lời mạch lạc, logic và đầy đủ nhất cho Câu hỏi chính: {query}, tập trung vào trọng tâm."
-    payload = {
-        "model": model_gemma,
-        "prompt": summary_prompt,
-        "stream": True,
-        "options": {
-            "num_predict": -1,
-            "top_k": 20,
-            "top_p": 0.9,
-            "min_p": 0.0,
-            "temperature": 0.9,
-        }
-    }
-
-    try:
-        response = requests.post(OLLAMA_API_URL, json=payload, stream=True)
-        response.raise_for_status()
-        full_response = ""
-        for line in response.iter_lines():
-            if line:
-                json_data = json.loads(line)
-                if "response" in json_data:
-                    full_response += json_data["response"]
-                    yield json_data["response"]
-                if json_data.get("done", False):
-                    break
-    except requests.RequestException as e:
-        print(f"Lỗi khi gọi API Ollama: {e}")
-        yield None
-
-def extract_queries(text):
     queries = set()
-    lines = text.split('\n')
     in_query_section = False
-    
+
     for i, line in enumerate(lines):
         line_clean = line.strip().lower()
         if line_clean.startswith('đề xuất truy vấn:') or line_clean.startswith('**đề xuất truy vấn:**'):
             in_query_section = True
         elif in_query_section and (not line.strip() or not line.strip().startswith('*')):
             in_query_section = False
-        
+
         if in_query_section:
+            # Nếu dòng hiện tại không bắt đầu bằng '*' nhưng có chứa 'Đề xuất truy vấn:'
             if i + 1 < len(lines) and not lines[i].strip().startswith('*') and lines[i].strip().startswith('Đề xuất truy vấn:'):
                 next_line = lines[i + 1].strip()
                 if next_line and not next_line.startswith('Truy vấn từ') and not next_line.startswith('Đánh giá:'):
                     clean_query = next_line.strip('"').strip('*').strip()
-                    if clean_query:
-                        analys_prompt_stream = analys_prompt(clean_query)
-
-                        full_query=""
-                        for part in analys_prompt_stream:
-                            if part is not None:
-                                full_query += part
-
-
-                        queries.add(full_query)
+                    if clean_query and clean_query not in history_queries:
+                        queries.add(clean_query)
+            # Nếu dòng hiện tại bắt đầu bằng '*' thì trích xuất phần sau dấu *
             elif line.strip().startswith('*'):
                 clean_query = line.strip()[1:].strip().strip('"').strip()
-                if clean_query:
+                if clean_query and clean_query not in history_queries:
                     queries.add(clean_query)
-    
+
     return list(queries)[:1]
 
-
-def analys_prompt(query):
-    """Gửi yêu cầu đến Ollama API và yield từng phần của phản hồi."""
-    prompt = f"From the given query, translate it to English if necessary, then provide exactly one concise English search query (no explanations, no extra options) that a user would use to find relevant information on the web. Query: {query}"
-    payload = {
-        "model": model_gemma,
-        "prompt": prompt,
-        "stream": True,
-        "options": {
-            "num_predict": -1,
-            "top_k": 20,
-            "top_p": 0.9,
-            "min_p": 0.0,
-            "temperature": 0.9,
-        }
-    }
-
-    try:
-        response = requests.post(OLLAMA_API_URL, json=payload, stream=True)
-        response.raise_for_status()
-        full_response = ""
-        for line in response.iter_lines():
-            if line:
-                json_data = json.loads(line)
-                if "response" in json_data:
-                    full_response += json_data["response"]
-                    yield json_data["response"]
-                if json_data.get("done", False):
-                    break
-    except requests.RequestException as e:
-        print(f"Lỗi khi gọi API Ollama: {e}")
-        yield None
 
 def deepsearch(initial_query, max_iterations=3):
     current_queries = []
     accumulated_context = ""
-    iteration = 0
     all_answers = {}
+    all_data = ""
+    history_queries = set([initial_query])
+    history_keywords = set()
+    keywords = generate_keywords(initial_query, history_keywords=history_keywords)
+    history_keywords.update(keywords)
+    iteration = 0
 
-    analys_prompt_stream = analys_prompt(initial_query)
+    ### phân tích câu hỏi
+    analys_question_stream = analys_question(initial_query)
+    full_analys_question=""
+    for part in analys_question_stream:
+        if part is not None:
+            full_analys_question += part
+    console.print((full_analys_question), soft_wrap=True)
+    history_analys.append(full_analys_question)
+    ###
 
-    full_query=""
+    ### phân tích tìm kiếm tạo câu truy vấn
+    analys_prompt_stream = analys_prompt(history_analys)
+    full_analys_prompt=""
     for part in analys_prompt_stream:
         if part is not None:
-            full_query += part
-
-    current_queries.append(full_query)
+            full_analys_prompt += part
+    current_queries.append(full_analys_prompt)
+    ###
 
     while iteration < max_iterations and current_queries:
         current_query = current_queries.pop(0)
@@ -239,9 +122,46 @@ def deepsearch(initial_query, max_iterations=3):
             console.print(f"  [red]Kết quả: Không tìm thấy thông tin liên quan. 😕[/red]")
             continue
 
+
+        new_query_found = False
+
+        # Duyệt qua từng kết quả tìm kiếm
         for result in search_results:
             content = extract_content(result['url'])
+            if "Error" not in content:
+                console.print(f" [cyan]Tìm kiếm trong {result['url']}🔍\n[/cyan]")
+                analysis = process_link(initial_query, result['url'], content, keywords)
+                
+                final_analysis = ""
+                for part in analysis:
+                    if part is not None:
+                        final_analysis += part
+
+                console.print(f"[magenta]Phân tích: {final_analysis}\n[/magenta]", soft_wrap=True)
+                all_answers[current_query] = final_analysis
+
+                all_data += f"{result['url']}: {final_analysis}\n"
+                
+                # Trích xuất new_query từ nội dung phân tích
+                new_queries = extract_queries(analysis, history_queries)
+                if new_queries:
+                    for query in new_queries:
+                        if query not in history_queries:
+                            current_queries.append(query)
+                            history_queries.add(query)
+                            console.print(f"Thêm truy vấn mới: {query}")
+                            new_query_found = True
+                    if new_query_found:
+                        break
+
             accumulated_context += f"\nNguồn: {result['url']}\n{content}\n"
+
+        
+        ##old
+        # for result in search_results:
+        #     content = extract_content(result['url'])
+        #     accumulated_context += f"\nNguồn: {result['url']}\n{content}\n"
+
 
         # Thu thập toàn bộ phản hồi từ reason_with_ollama
         answer_stream = reason_with_ollama(initial_query, accumulated_context)
@@ -252,9 +172,7 @@ def deepsearch(initial_query, max_iterations=3):
         all_answers[current_query] = full_answer
         console.print(Markdown(full_answer), soft_wrap=True, end="")
 
-        # Trích xuất truy vấn từ suy luận nhưng không hiển thị
         new_queries_from_reasoning = extract_queries(full_answer)
-        # console.print(f"  [blue]Truy vấn từ suy luận: {new_queries_from_reasoning} 🤓[/blue]")  # Ẩn dòng này
 
         # Thu thập toàn bộ phản hồi từ evaluate_answer
         evaluation_stream = evaluate_answer(initial_query, full_answer)
@@ -266,8 +184,6 @@ def deepsearch(initial_query, max_iterations=3):
         
         if "đã đủ" in full_evaluation.lower():
             console.print("[bold green]Thông tin đã đủ, không cần tìm thêm! 🎉[/bold green]")
-            # if new_queries_from_reasoning:
-            #     console.print(f"  [yellow]Lưu ý: Có truy vấn từ suy luận ({new_queries_from_reasoning}) nhưng bị bỏ qua vì đánh giá 'Đã đủ'.[/yellow]")  # Ẩn dòng này
             break
         elif "chưa đủ" in full_evaluation.lower():
             new_queries_from_evaluation = extract_queries(full_evaluation)
@@ -275,7 +191,6 @@ def deepsearch(initial_query, max_iterations=3):
             relevant_query = new_queries_from_evaluation[0] if new_queries_from_evaluation else (new_queries_from_reasoning[0] if new_queries_from_reasoning else None)
             if relevant_query and relevant_query not in current_queries and relevant_query not in all_answers:
                 current_queries.append(relevant_query)
-                # console.print(f"  [cyan]Truy vấn được thêm: [{relevant_query}] 🚀[/cyan]")  # Ẩn dòng này
             else:
                 console.print("[yellow]Không có truy vấn mới phù hợp để tiếp tục. 🤔[/yellow]")
             iteration += 1
@@ -285,7 +200,6 @@ def deepsearch(initial_query, max_iterations=3):
             relevant_query = new_queries_from_evaluation[0] if new_queries_from_evaluation else (new_queries_from_reasoning[0] if new_queries_from_reasoning else None)
             if relevant_query and relevant_query not in current_queries and relevant_query not in all_answers:
                 current_queries.append(relevant_query)
-                # console.print(f"  [cyan]Truy vấn từ đánh giá không rõ ràng: [{relevant_query}] 🔄[/cyan]")  # Ẩn dòng này
             else:
                 current_queries.append(current_query)
             iteration += 1
@@ -295,7 +209,6 @@ def deepsearch(initial_query, max_iterations=3):
     else:
         console.print("\n[bold green]Đã hoàn thành tìm kiếm! 🌟[/bold green]")
     
-    # Thu thập toàn bộ phản hồi từ summarize_answers
     summary_stream = summarize_answers(initial_query, all_answers)
     final_answer = ""
     for part in summary_stream:
@@ -303,7 +216,7 @@ def deepsearch(initial_query, max_iterations=3):
             final_answer += part
     return f"\n{final_answer}"
 
-#Hàm test 
 
-# query = "So sánh hiệu suất các mô hình AI lớn hiện tại"
+# #Hàm test 
+# query = "Model text to image nào phù hợp với card đồ họa 4060 8gb"
 # console.print(deepsearch(query))
