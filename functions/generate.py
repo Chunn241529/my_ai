@@ -324,3 +324,35 @@ def summarize_answers(query, all_answers):
     except requests.RequestException as e:
         print(f"Lỗi khi gọi API Ollama: {e}")
         yield None
+
+def better_question(query):
+    """Gửi yêu cầu đến Ollama API và yield từng phần của phản hồi."""
+    summary_prompt = f"""
+        Câu hỏi gốc: '{query}'  
+        Xét kỹ câu hỏi này: Nó thiếu gì để rõ nghĩa hơn? Bổ sung sao cho tự nhiên, cụ thể và dễ hiểu, như cách nói chuyện với bạn. Viết lại thành câu hỏi đầy đủ, giữ ý chính nhưng mạch lạc hơn.  
+    """
+    payload = {
+        "model": model_curent,
+        "prompt": summary_prompt,
+        "stream": True,
+        "options": {
+            "num_predict": 200,  # Tăng lên 200 để đủ cho câu hỏi cải thiện
+            "temperature": 0.7,  # Giảm nhẹ để logic và tự nhiên hơn
+        }
+    }
+
+    try:
+        response = requests.post(OLLAMA_API_URL, json=payload, stream=True)
+        response.raise_for_status()
+        full_response = ""
+        for line in response.iter_lines():
+            if line:
+                json_data = json.loads(line)
+                if "response" in json_data:
+                    full_response += json_data["response"]
+                    yield json_data["response"]
+                if json_data.get("done", False):
+                    break
+    except requests.RequestException as e:
+        print(f"Lỗi khi gọi API Ollama: {e}")
+        yield None

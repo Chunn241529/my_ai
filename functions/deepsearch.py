@@ -20,13 +20,13 @@ history_analys = []
 
 import random                                                                  
                                                                             
-def random_number():                                                           
+def random_number(min, max):                                                           
     """                                                                          
     Hàm này tạo ra một số ngẫu nhiên từ 10 đến 25.                               
     """                                                                          
-    return random.randint(10, 25)     
+    return random.randint(min, max)     
 
-max_results = random_number() # number of ressults 
+max_results = random_number(10, 25) # number of ressults 
 
 # Các hàm từ search.py
 def search_web(query, max_results=max_results):
@@ -107,7 +107,7 @@ def extract_queries(text, history_queries=None):
     return list(queries)[:1]
 
 
-def deepsearch(initial_query, max_iterations=3):
+def deepsearch(initial_query, max_iterations=random_number(2, 5)):
     current_queries = []
     accumulated_context = ""
     all_answers = {}
@@ -128,6 +128,22 @@ def deepsearch(initial_query, max_iterations=3):
             if part is not None:
                 full_analys_question += part
     console.print(Markdown(full_analys_question), soft_wrap=True, end="")
+
+    if "Khó nha bro" in full_analys_question:
+        all_answers.clear()
+        history_analys.clear()
+        console.print(f"\n[red]Không tìm thấy thông tin, để tôi phân tích lại câu hỏi...[/red]\n")
+        better_question_prompt = better_question(initial_query)
+        
+        new_question = ""
+        with console.status("[bold green]Phân tích câu hỏi... [/bold green]", spinner="dots"):
+            for part in better_question_prompt:
+                if part is not None:
+                    new_question += part
+
+        console.print(Markdown(new_question), soft_wrap=True, end="")
+        full_analys_question = new_question
+    
     history_analys.append(full_analys_question)
     ###
 
@@ -146,7 +162,7 @@ def deepsearch(initial_query, max_iterations=3):
         current_query = current_queries.pop(0)
         
         console.print("\n")
-        console.print(f"[cyan]🔍 {current_query} [/cyan]")
+        console.print(f"[cyan]Tìm kiếm: {current_query}[/cyan]")
         console.print("\n")
 
         search_results = search_web(current_query)
