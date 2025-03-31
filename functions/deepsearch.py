@@ -238,12 +238,15 @@ def deepsearch(initial_query, max_iterations=random_number(2, 5)):
                 processed_urls.add(url)  # Thêm URL vào danh sách đã phân tích
             elif "NOT YET" not in sufficiency_result.upper():
                 result_processed = False
-                processed_urls.add(url)
+                processed_urls.add(url)             
             else:
                 result_processed = False
                 processed_urls.add(url)            
+
+
             # Trích xuất new_query
-            new_queries = extract_queries(analysis, history_queries)
+            new_queries = extract_queries(final_analysis, history_queries)
+
             if new_queries:
                 for query in new_queries:
                     if query not in history_queries:
@@ -271,7 +274,7 @@ def deepsearch(initial_query, max_iterations=random_number(2, 5)):
         new_queries_from_reasoning = extract_queries(full_answer)
 
         # Thu thập toàn bộ phản hồi từ evaluate_answer
-        evaluation_stream = evaluate_answer(initial_query, full_answer, evaluate_answer)
+        evaluation_stream = evaluate_answer(initial_query, full_answer, processed_urls)
         full_evaluation = ""
         with console.status("[bold green]Đánh giá nội dung... [/bold green]", spinner="dots"):
             for part in evaluation_stream:

@@ -327,13 +327,13 @@ def summarize_answers(query, all_answers):
 
 def better_question(query):
     """Gửi yêu cầu đến Ollama API và yield từng phần của phản hồi."""
-    summary_prompt = f"""
+    better_prompt = f"""
         Câu hỏi gốc: '{query}'  
         Xét kỹ câu hỏi này: Nó thiếu gì để rõ nghĩa hơn? Bổ sung sao cho tự nhiên, cụ thể và dễ hiểu, như cách nói chuyện với bạn. Viết lại thành câu hỏi đầy đủ, giữ ý chính nhưng mạch lạc hơn.  
     """
     payload = {
         "model": model_curent,
-        "prompt": summary_prompt,
+        "prompt": better_prompt,
         "stream": True,
         "options": {
             "num_predict": 200,  # Tăng lên 200 để đủ cho câu hỏi cải thiện
