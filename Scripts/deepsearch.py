@@ -40,14 +40,32 @@ def search_web(query, max_results=max_results):
             })
     return results
 
-def extract_content(url):
+def extract_content(url, snippet=""):
     try:
         response = requests.get(url, timeout=10)
+        response.raise_for_status()  # Kiểm tra lỗi HTTP
         soup = BeautifulSoup(response.text, 'html.parser')
-        paragraphs = soup.find_all('p')
-        content = " ".join([p.get_text() for p in paragraphs])
-        return content[:12000]
-    except Exception as e:
+        
+        # Danh sách các thẻ muốn trích xuất nội dung
+        tags_to_extract = ['p', 'h1', 'h2', 'li', 'a']
+        content_parts = []
+        
+        # Duyệt qua từng loại thẻ
+        for tag in soup.find_all(tags_to_extract):
+            if tag.name == 'a' and tag.get('href'):  # Đặc biệt xử lý thẻ <a>
+                text = tag.get_text(strip=True)
+                href = tag['href']
+                content_parts.append(f"{text} (link: {href})")
+            else:  # Các thẻ khác chỉ lấy text
+                text = tag.get_text(strip=True)
+                if text:  # Chỉ thêm nếu có nội dung
+                    content_parts.append(text)
+        
+        # Ghép tất cả nội dung thành một chuỗi, thêm snippet nếu có
+        content = f"Snippet: {snippet}\n" + " ".join(content_parts)
+        return content[:5000]  # Giới hạn 5000 ký tự
+    
+    except requests.RequestException as e:
         return f"Error fetching {url}: {str(e)}"
 
 
@@ -96,37 +114,39 @@ def deepsearch(initial_query, max_iterations=3):
     all_data = ""
     history_queries = set([initial_query])
     history_keywords = set()
-    keywords = generate_keywords(initial_query, history_keywords=history_keywords)
-    history_keywords.update(keywords)
+
+    ###
+
     iteration = 0
+    processed_urls = set()  # Danh sách để lưu các URL đã phân tích
 
     ### phân tích câu hỏi
     analys_question_stream = analys_question(initial_query)
     full_analys_question=""
-    with console.status("[bold green][/bold green]", spinner="dots"):
+    with console.status("[bold green]Phân tích vấn đề... [/bold green]", spinner="dots"):
         for part in analys_question_stream:
             if part is not None:
                 full_analys_question += part
-    console.print(Markdown(full_analys_question), soft_wrap=True)
+    console.print(Markdown(full_analys_question), soft_wrap=True, end="")
     history_analys.append(full_analys_question)
     ###
 
     ### phân tích tìm kiếm tạo câu truy vấn
     analys_prompt_stream = analys_prompt(history_analys)
     full_analys_prompt=""
-    with console.status("[bold green][/bold green]", spinner="dots"):
+    with console.status("[bold green]Tìm kiếm... [/bold green]", spinner="dots"):
         for part in analys_prompt_stream:
             if part is not None:
                 full_analys_prompt += part
-    
-    current_queries.append(full_analys_prompt)
+    final_analys_prompt = full_analys_prompt.strip('"')  # Loại bỏ dấu ngoặc kép nếu có
+    current_queries.append(final_analys_prompt)
     ###
 
     while iteration < max_iterations and current_queries:
         current_query = current_queries.pop(0)
         
         console.print("\n")
-        console.print(f"[cyan]Tìm kiếm: {current_query} 🔍[/cyan]")
+        console.print(f"[cyan]🔍 {current_query} [/cyan]")
         console.print("\n")
 
         search_results = search_web(current_query)
@@ -135,14 +155,14 @@ def deepsearch(initial_query, max_iterations=3):
         if not search_results:
             all_answers.clear()
             console.print("\n")
-            console.print(f"[red]Không tìm thấy thông tin, để tôi phân tích lại câu hỏi...[/red]")
+            console.print(f"[red]Khó nha bro! Không tìm thấy thông tin, để tôi phân tích lại câu hỏi...[/red]")
             console.print("\n")
             return deepsearch(initial_query)
         
         if any(result.get('title', '').startswith('EOF') for result in search_results):
             all_answers.clear()
             console.print("\n")
-            console.print(f"[red]Không tìm thấy thông tin, để tôi phân tích lại câu hỏi...[/red]")
+            console.print(f"[red]Khó nha bro! Không tìm thấy thông tin, để tôi phân tích lại câu hỏi...[/red]")
             console.print("\n")
             return deepsearch(initial_query)
 
@@ -154,48 +174,58 @@ def deepsearch(initial_query, max_iterations=3):
         new_query_found = False
     
         for i, result in enumerate(search_results):
-            content = extract_content(result['url'])
+            url = result['url']
+            
+            # Kiểm tra xem URL đã được phân tích chưa
+            if url in processed_urls:
+                continue
+            
+            content = extract_content(url)
             if "Error" in content:
                 continue
-            console.print("\n")
-            console.print(Markdown(f"Tìm kiếm trong [{result['title']}]({result['url']})"), soft_wrap=True)
-            console.print("\n")
-            
+                   
             # Phân tích chính bằng process_link
-            analysis = process_link(initial_query, result['url'], content, keywords)
-            
+            analysis = process_link(initial_query, url, content)
+            console.print("\n")
             final_analysis = ""
-            for part in analysis:
-                if part is not None:
-                    final_analysis += part
+            with console.status(Markdown(f"Tìm kiếm trong [{result['title']}]({url})"), spinner="dots"):
+                for part in analysis:
+                    if part is not None:
+                        final_analysis += part
             
-            console.print(Markdown(final_analysis), soft_wrap=True)
+            console.print(Markdown(final_analysis), soft_wrap=True, end="")
             
             # Đánh giá thông tin bằng process_link
             sufficiency_prompt = (
-                f"Nội dung phân tích: {final_analysis[:5000]}\n"
+                f"Url: {url}\n"
+                f"Nội dung phân tích: {final_analysis}\n"
                 f"Câu hỏi ban đầu: {initial_query}\n"
-                f"Hãy đánh giá xem thông tin này đã đủ để trả lời câu hỏi chưa. "
+                f"Danh sách URL đã phân tích: {', '.join(processed_urls)}\n"
+                f"Nếu URL này trùng với bất kỳ URL nào trong danh sách đã phân tích, trả lời 'NOT YET' và không đánh giá thêm.\n"
+                f"Nếu không trùng, hãy đánh giá xem thông tin này đã đủ để trả lời câu hỏi chưa. "
                 f"Trả lời 'OK' nếu đủ, 'NOT YET' nếu chưa đủ, kèm theo lý do ngắn gọn."
             )
             
-            sufficiency_analysis = process_link(initial_query, result['url'], sufficiency_prompt, keywords)
+            sufficiency_analysis = process_link(initial_query, url, sufficiency_prompt)
+            console.print("\n")
             sufficiency_result = ""
-            with console.status("[bold green][/bold green]", spinner="dots"):
-                for part in sufficiency_analysis:
-                    if part is not None:
-                        sufficiency_result += part
-            
+            for part in sufficiency_analysis:
+                if part is not None:
+                    sufficiency_result += part
             
             # Kiểm tra kết quả đánh giá
             if "OK" in sufficiency_result.upper():
                 result_processed = True
                 all_answers[initial_query] = final_analysis
                 history_analys.append(final_analysis)
-                all_data += f"{result['url']}: {final_analysis}\n"
+                all_data += f"{url}: {final_analysis}\n"
+                processed_urls.add(url)  # Thêm URL vào danh sách đã phân tích
+            elif "NOT YET" not in sufficiency_result.upper():
+                result_processed = False
+                processed_urls.add(url)
             else:
                 result_processed = False
-            
+                processed_urls.add(url)            
             # Trích xuất new_query
             new_queries = extract_queries(analysis, history_queries)
             if new_queries:
@@ -205,10 +235,8 @@ def deepsearch(initial_query, max_iterations=3):
                         history_queries.add(query)
                         console.print(f"Thêm truy vấn mới: {query}")
                         new_query_found = True
-                
-
             
-            accumulated_context += f"\nNguồn: {result['url']}\n{content}\n"
+            accumulated_context += f"\nNguồn: {url}\n{content}\n"
             if result_processed or new_query_found:
                 break
         
@@ -216,7 +244,7 @@ def deepsearch(initial_query, max_iterations=3):
         # Thu thập toàn bộ phản hồi từ reason_with_ollama
         answer_stream = reason_with_ollama(initial_query, accumulated_context)
         full_answer = ""
-        with console.status("[bold green][/bold green]", spinner="dots"):
+        with console.status("[bold green]Suy luận... [/bold green]", spinner="dots"):
             for part in answer_stream:
                 if part is not None:
                     full_answer += part
@@ -227,9 +255,9 @@ def deepsearch(initial_query, max_iterations=3):
         new_queries_from_reasoning = extract_queries(full_answer)
 
         # Thu thập toàn bộ phản hồi từ evaluate_answer
-        evaluation_stream = evaluate_answer(initial_query, full_answer)
+        evaluation_stream = evaluate_answer(initial_query, full_answer, evaluate_answer)
         full_evaluation = ""
-        with console.status("[bold green][/bold green]", spinner="dots"):
+        with console.status("[bold green]Đánh giá nội dung... [/bold green]", spinner="dots"):
             for part in evaluation_stream:
                 if part is not None:
                     full_evaluation += part
@@ -252,14 +280,14 @@ def deepsearch(initial_query, max_iterations=3):
             iteration += 1
  
     if iteration >= max_iterations:
-        console.print(f"\n")
+        console.print("\n[bold green]Kết thúc DeepSearch! 🌟\n[/bold green]")
     else:
         console.print("\n[bold green]Kết thúc DeepSearch! 🌟\n[/bold green]")
 
 
     summary_stream = summarize_answers(initial_query, history_analys)
     final_answer = ""
-    with console.status("[bold green][/bold green]", spinner="dots"):
+    with console.status("[bold green]Tổng hợp... [/bold green]", spinner="dots"):
         for part in summary_stream:
             if part is not None:
                 final_answer += part
@@ -278,5 +306,5 @@ def deepsearch(initial_query, max_iterations=3):
 
 # #Hàm test
 # if __name__ == "__main__":
-#     query = "Tôi muốn đi du lịch Nhật Bản và là lần đầu tôi đi. Hãy cho tôi chút kinh nghiệm"
+#     query = "Cập nhật giúp tôi những từ ngữ hot trend của giới trẻ genz Việt Nam đầu năm 2025"
 #     console.print(deepsearch(query))

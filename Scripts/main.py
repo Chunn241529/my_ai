@@ -53,12 +53,13 @@ def main():
                     if part is not None:
                         full_response += part
                         # os.system("clear")
-                        # console.print(Markdown(full_response), soft_wrap=True, end="")
+                        # console.print(Markdown(full_response), soft_wrap=True)
 
             # os.system("clear")
-            console.print(Markdown(full_response), soft_wrap=True, end="")
+            console.print(Markdown(full_response), soft_wrap=True)
             console.print("\n\n")
             message_history.append({"role": "assistant", "content": full_response})
+
         else:
             user_input = process_file_read(user_input)
             response_stream = query_ollama(user_input)
@@ -71,7 +72,7 @@ def main():
                         # console.print(Markdown(full_response), soft_wrap=True, end="")
 
             # os.system("clear")
-            console.print(Markdown(full_response), soft_wrap=True)
+            console.print(Markdown(full_response), soft_wrap=True, end="")
             console.print("\n\n")
             message_history.append({"role": "assistant", "content": full_response})
 
