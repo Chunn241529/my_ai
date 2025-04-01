@@ -26,9 +26,8 @@ def random_number(min, max):
     """                                                                          
     return random.randint(min, max)     
 
-max_results = random_number(10, 25) # number of ressults 
+max_results = random_number(10, 25) 
 
-# Các hàm từ search.py
 def search_web(query, max_results=max_results):
     results = []
     with DDGS() as ddgs:
@@ -43,28 +42,26 @@ def search_web(query, max_results=max_results):
 def extract_content(url, snippet=""):
     try:
         response = requests.get(url, timeout=10)
-        response.raise_for_status()  # Kiểm tra lỗi HTTP
+        response.raise_for_status()
         soup = BeautifulSoup(response.text, 'html.parser')
-        
-        # Danh sách các thẻ muốn trích xuất nội dung
-        tags_to_extract = ['p', 'h1', 'h2', 'li', 'a']
+        tags_to_extract = ['p', 'h1', 'h2', 'h3', 'li']
         content_parts = []
-        
-        # Duyệt qua từng loại thẻ
         for tag in soup.find_all(tags_to_extract):
-            if tag.name == 'a' and tag.get('href'):  # Đặc biệt xử lý thẻ <a>
-                text = tag.get_text(strip=True)
-                href = tag['href']
-                content_parts.append(f"{text} (link: {href})")
-            else:  # Các thẻ khác chỉ lấy text
-                text = tag.get_text(strip=True)
-                if text:  # Chỉ thêm nếu có nội dung
-                    content_parts.append(text)
-        
-        # Ghép tất cả nội dung thành một chuỗi, thêm snippet nếu có
+            text = tag.get_text(strip=True)
+            if text:
+                content_parts.append(text)
         content = f"Snippet: {snippet}\n" + " ".join(content_parts)
-        return content[:5000]  # Giới hạn 5000 ký tự
-    
+        return content
+    except requests.RequestException as e:
+        return f"Error fetching {url}: {str(e)}"
+
+def extract_hrefs(url):
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, 'html.parser')
+        href_list = [tag['href'] for tag in soup.find_all('a', href=True)]
+        return href_list
     except requests.RequestException as e:
         return f"Error fetching {url}: {str(e)}"
 
@@ -72,11 +69,9 @@ def extract_content(url, snippet=""):
 def extract_queries(text, history_queries=None):
     if history_queries is None:
         history_queries = set()
-    # Nếu text không hỗ trợ split(), nghĩa là nó không phải là chuỗi, ta sẽ tiêu thụ nó
     try:
         lines = text.split('\n')
     except AttributeError:
-        # Nếu text là generator, chuyển nó thành chuỗi
         text = ''.join(text)
         lines = text.split('\n')
 
@@ -91,14 +86,12 @@ def extract_queries(text, history_queries=None):
             in_query_section = False
 
         if in_query_section:
-            # Nếu dòng hiện tại không bắt đầu bằng '*' nhưng có chứa 'Đề xuất truy vấn:'
             if i + 1 < len(lines) and not lines[i].strip().startswith('*') and lines[i].strip().startswith('Đề xuất truy vấn:'):
                 next_line = lines[i + 1].strip()
                 if next_line and not next_line.startswith('Truy vấn từ') and not next_line.startswith('Đánh giá:'):
                     clean_query = next_line.strip('"').strip('*').strip()
                     if clean_query and clean_query not in history_queries:
                         queries.add(clean_query)
-            # Nếu dòng hiện tại bắt đầu bằng '*' thì trích xuất phần sau dấu *
             elif line.strip().startswith('*'):
                 clean_query = line.strip()[1:].strip().strip('"').strip()
                 if clean_query and clean_query not in history_queries:
@@ -114,6 +107,8 @@ def deepsearch(initial_query, max_iterations=random_number(2, 5)):
     all_data = ""
     history_queries = set([initial_query])
     history_keywords = set()
+    keywords = generate_keywords(initial_query, history_keywords=history_keywords)
+    history_keywords.update(keywords)
 
     ###
 
@@ -185,23 +180,22 @@ def deepsearch(initial_query, max_iterations=random_number(2, 5)):
 
         new_query_found = False
 
-        # Duyệt qua từng kết quả tìm kiếm
         result_processed = False
         new_query_found = False
     
         for i, result in enumerate(search_results):
             url = result['url']
             
-            # Kiểm tra xem URL đã được phân tích chưa
             if url in processed_urls:
                 continue
-            
+            ### content trong url
             content = extract_content(url)
+            ### 
+
             if "Error" in content:
                 continue
-                   
-            # Phân tích chính bằng process_link
-            analysis = process_link(initial_query, url, content)
+            
+            analysis = process_link(initial_query, url, content, keywords)
             console.print("\n")
             final_analysis = ""
             with console.status(Markdown(f"Tìm kiếm trong [{result['title']}]({url})"), spinner="dots"):
@@ -209,6 +203,8 @@ def deepsearch(initial_query, max_iterations=random_number(2, 5)):
                     if part is not None:
                         final_analysis += part
             
+            console.print(Markdown(f"Tìm kiếm trong [{result['title']}]({url})\n"), soft_wrap=True, end="")
+            processed_urls.add(url)
             console.print(Markdown(final_analysis), soft_wrap=True, end="")
             
             # Đánh giá thông tin bằng process_link
@@ -216,13 +212,12 @@ def deepsearch(initial_query, max_iterations=random_number(2, 5)):
                 f"Url: {url}\n"
                 f"Nội dung phân tích: {final_analysis}\n"
                 f"Câu hỏi ban đầu: {initial_query}\n"
-                f"Danh sách URL đã phân tích: {', '.join(processed_urls)}\n"
-                f"Nếu URL này trùng với bất kỳ URL nào trong danh sách đã phân tích, trả lời 'NOT YET' và không đánh giá thêm.\n"
-                f"Nếu không trùng, hãy đánh giá xem thông tin này đã đủ để trả lời câu hỏi chưa. "
-                f"Trả lời 'OK' nếu đủ, 'NOT YET' nếu chưa đủ, kèm theo lý do ngắn gọn."
+                f"Nếu '{url}' này trùng với bất kỳ URL nào trong danh sách '{', '.join(processed_urls)}', trả lời 'NOT YET' và không đánh giá thêm.\n"
+                f"Nếu không trùng, hãy đánh giá xem thông tin này đã đủ để trả lời câu hỏi chưa.\n"
+                f"Trả lời 'OK' nếu đủ, 'NOT YET' nếu chưa đủ."
             )
             
-            sufficiency_analysis = process_link(initial_query, url, sufficiency_prompt)
+            sufficiency_analysis = process_link(initial_query, url, sufficiency_prompt, keywords)
             console.print("\n")
             sufficiency_result = ""
             for part in sufficiency_analysis:
@@ -234,14 +229,9 @@ def deepsearch(initial_query, max_iterations=random_number(2, 5)):
                 result_processed = True
                 all_answers[initial_query] = final_analysis
                 history_analys.append(final_analysis)
-                all_data += f"{url}: {final_analysis}\n"
-                processed_urls.add(url)  # Thêm URL vào danh sách đã phân tích
-            elif "NOT YET" not in sufficiency_result.upper():
-                result_processed = False
-                processed_urls.add(url)             
+                all_data += f"{result['url']}: {final_analysis}\n"           
             else:
                 result_processed = False
-                processed_urls.add(url)            
 
 
             # Trích xuất new_query

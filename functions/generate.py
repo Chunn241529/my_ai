@@ -42,7 +42,9 @@ Bạn là TrunGPT, một trợ lý AI chuyên phân tích ngôn ngữ, cung cấ
 Hãy luôn giúp đỡ người dùng một cách chuyên nghiệp và thú vị nhé! 🚀  
 
 ### Tool bạn có thể dùng:
-- Tắt máy tính: @shutdown<phút>. Ví dụ: @shutdown<10>. Tắt ngay lập tức thì dùng @shutdown<now>
+- Tắt máy tính: @shutdown<phút>. Ví dụ: tắt máy trong vòng 10 phút thì dùng: @shutdown<10>. 
+- Tắt ngay lập tức thì dùng @shutdown<now>
+- Để hủy tắt máy thì dùng @shutdown<-c>
 - Khởi động lại máy tính: @reboot<phút>. Ví dụ: @reboot<30> .
 - Đọc tệp: @read<địa chỉ tệp>. Ví dụ: @read<readme.md>.
 - Ghi tệp: @write<địa chỉ tệp><nội dung>. Ví dụ: @write<readme.md><### Tổng quan>
@@ -85,7 +87,7 @@ def query_ollama(prompt, model=model_curent):
                     full_response += json_data["response"]
                     yield json_data["response"]
                 if json_data.get("done", False):
-                    process_shutdown_command(full_response)
+                    
                     break
     except requests.exceptions.RequestException as e:
         print(f"Lỗi khi gọi Ollama: {e}")
@@ -98,7 +100,7 @@ def analys_question(query):
         Xét câu hỏi: '{query}'.  
         - Nếu câu hỏi không đủ rõ, vô lý, hoặc không thể suy luận (ví dụ: "Mùi của mưa nặng bao nhiêu?"), trả về: "Khó nha bro, [lý do ngắn gọn tự nhiên]."  
         - Nếu câu hỏi có thể suy luận được:  
-            1. Tạo keyword: Lấy 2-4 từ khóa chính từ câu hỏi (ngắn gọn, sát nghĩa). * Không cần show ra cho người dùng thấy.  
+            1. Tạo keyword: Lấy 2-10 từ khóa chính từ câu hỏi (ngắn gọn, sát nghĩa, đầy đủ).
             2. Phân tích từng keyword: Mỗi từ khóa gợi lên ý gì? Liên quan thế nào đến ý định người dùng?  
             3. Tổng hợp:  
                 * Ý định: Người dùng muốn gì? (thông tin, giải pháp, hay gì khác)  
@@ -143,7 +145,7 @@ def analys_prompt(query):
         "stream": True,
         "options": {
             "num_predict": 200,
-            "temperature": 0.4,
+            "temperature": 0.9,
         }
     }
 
@@ -164,27 +166,61 @@ def analys_prompt(query):
         yield None
 
 
-def process_link(query, url, content):
+def generate_keywords(query, context="", history_keywords=None):
+    if history_keywords is None:
+        history_keywords = set()
+    prompt = (
+        f"Câu hỏi: {query}\nThông tin hiện có: {context[:2000]}\n"
+        f"Lịch sử từ khóa đã dùng: {', '.join(history_keywords)}\n"
+        f"Hãy suy luận và tạo 2-10 từ khóa mới, không trùng với lịch sử, liên quan đến câu hỏi. "
+        f"Trả về dưới dạng danh sách: * \"từ khóa 1\" * \"từ khóa 2\" * \"từ khóa 3\" * \"từ khóa 4\" * \"từ khóa 5\"..."
+    )
+    payload = {
+        "model": model_curent,
+        "prompt": prompt,
+        "stream": True,
+        "options": {
+            "num_predict": 500,
+            "top_k": 20,
+            "top_p": 0.9,
+            "min_p": 0.0,
+            "temperature": 0.9,
+        }
+    }
+
+    try:
+        response = requests.post(OLLAMA_API_URL, json=payload, stream=True)
+        response.raise_for_status()
+        full_response = ""
+        for line in response.iter_lines():
+            if line:
+                json_data = json.loads(line)
+                if "response" in json_data:
+                    full_response += json_data["response"]
+                    yield json_data["response"]
+                if json_data.get("done", False):
+                    break
+    except requests.RequestException as e:
+        print(f"Lỗi khi gọi API Ollama: {e}")
+        yield None
+
+def process_link(query, url, content, keywords):
     """Gửi yêu cầu đến Ollama API và yield từng phần của phản hồi."""
     prompt = (
         f"Nội dung từ {url}:\n{content}\n"
-        f"Hãy suy luận và trả lời câu hỏi '{query}' dựa trên nội dung được cung cấp, thực hiện theo các bước sau:\n"
-        f"* Phân tích nội dung và trích xuất các thông tin quan trọng liên quan đến từ khóa và câu hỏi. Lưu ý các dữ kiện cụ thể (số liệu, sự kiện), bối cảnh, và ý chính. Xem xét cả những chi tiết ngầm hiểu hoặc không được nói trực tiếp.\n"
-        f"* Dựa trên thông tin đã phân tích, xây dựng lập luận chi tiết để trả lời câu hỏi. Hãy:\n"
-        f"   - So sánh và đối chiếu các dữ kiện nếu có mâu thuẫn hoặc nhiều góc nhìn.\n"
-        f"   - Suy ra từ những gì không được nói rõ, nếu nội dung gợi ý điều đó.\n"
-        f"   - Đưa ra giả định hợp lý (nếu thiếu dữ liệu) và giải thích tại sao giả định đó có cơ sở.\n"
-        f"   - Nếu có thể, dự đoán hoặc mở rộng suy luận để làm rõ thêm ý nghĩa của câu trả lời.\n"
-        f"* Viết câu trả lời đầy đủ, tự nhiên, dựa hoàn toàn trên nội dung và suy luận, không thêm thông tin ngoài.\n"
-    )
+        f"Tập trung vào các từ khóa: {', '.join(keywords)}.\n"
+        f"Hãy tinh chỉnh sau đó trích xuất thông tin một cách logic.\n"
+        f"Suy luận, nghiên cứu nội dung và trả lời câu hỏi chi tiết dựa trên thông tin có sẵn.\n"
+        f"Sau đó đưa ra kết luận đầy đủ để trả lời câu hỏi {query} \n"
+    )    
     
     payload = {
         "model": model_curent,
         "prompt": prompt,
         "stream": True,
         "options": {
-            "num_predict": 4000,
-            "temperature": 0.5,
+            "num_predict": -1,
+            "temperature": 0.9,
         }
     }
 

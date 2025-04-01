@@ -1,5 +1,8 @@
+import shutil
+import time
 from rich.console import Console
 from rich.markdown import Markdown
+from rich.progress import track
 from prompt_toolkit import PromptSession
 from prompt_toolkit.styles import Style
 
@@ -9,6 +12,16 @@ from file import *
 from image import *
 from deepsearch import *
 from generate import *
+
+def delete_pycache(directory):
+    count = 0
+    for root, dirs, files in os.walk(directory):
+        for dir in dirs:
+            if dir == '__pycache__':
+                shutil.rmtree(os.path.join(root, dir))
+                count += 1
+    return count  # Trả về số thư mục __pycache__ đã xóa
+
 
 # Khởi tạo console từ Rich
 console = Console()
@@ -74,7 +87,11 @@ def main():
             # os.system("clear")
             console.print(Markdown(full_response), soft_wrap=True, end="")
             console.print("\n\n")
+            process_shutdown_command(full_response)
             message_history.append({"role": "assistant", "content": full_response})
 
 if __name__ == "__main__":
+    for i in track(range(delete_pycache(os.getcwd())),description="Xóa cache..."):
+        time.sleep(0.01)
+    console.clear()
     main()
