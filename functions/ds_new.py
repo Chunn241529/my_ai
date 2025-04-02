@@ -3,7 +3,6 @@ from bs4 import BeautifulSoup
 import requests
 from rich.console import Console
 from rich.markdown import Markdown
-from rich.live import Live
 import random
 from typing import List, Set, Dict
 
@@ -59,7 +58,7 @@ class DeepSearch:
             response = requests.get(url, timeout=10)
             response.raise_for_status()
             soup = BeautifulSoup(response.text, 'html.parser')
-            tags_to_extract = ['p', 'h1', 'h2', 'h3', 'a']
+            tags_to_extract = ['p', 'h1', 'h2', 'h3', 'li']
             content_parts = [tag.get_text(strip=True) for tag in soup.find_all(tags_to_extract) if tag.get_text(strip=True)]
             content = f"Snippet: {snippet}\n" + "\n".join(content_parts)
             return content
@@ -108,39 +107,30 @@ class DeepSearch:
         for part in keywords_stream:
             if part is not None:
                 full_keywords += part
-        
-        # Làm sạch và trích xuất từ khóa từ định dạng danh sách
-        keywords = []
-        for line in full_keywords.splitlines():
-            line = line.strip()
-            if line.startswith('*'):  # Chỉ lấy dòng bắt đầu bằng *
-                keyword = line.strip('*').strip().strip('"').strip()  # Loại bỏ *, ", và khoảng trắng thừa
-                if keyword:  # Chỉ thêm nếu từ khóa không rỗng
-                    keywords.append(keyword)
-        
-        self.history_keywords.update(keywords)  # Cập nhật set với từ khóa đã làm sạch
-        # console.print(f"[red][DEBUG]{self.history_keywords}[/red]")
+        self.history_keywords.update(full_keywords.split())
+        console.print(f"[red][DEBUG]{self.history_keywords}[/red]")
 
-        with Live(Markdown("💬"), refresh_per_second=10, console=console) as live:
+        with console.status("[bold green]Đang phân tích câu hỏi...[/bold green]", spinner="dots"):
             analysis_stream = analys_question(self.initial_query, self.history_keywords)
             full_analysis = ""
             
             for part in analysis_stream:
                 if part is not None:
                     full_analysis += part
-                    live.update(Markdown(f"\n{full_analysis}"))
-
-        # console.print(Markdown(full_analysis), soft_wrap=True, end="")
+                    console.clear()
+                    console.print(Markdown(full_analysis), soft_wrap=True, end="")
+        console.clear()           
+        console.print(Markdown(full_analysis), soft_wrap=True, end="")
 
         if "Khó nha bro" in full_analysis:
             self.all_answers.clear()
             better_question_stream = better_question(self.initial_query)
             new_question = ""
-            with Live(Markdown("💬"), refresh_per_second=10, console=console) as live:
+            with console.status("[bold green]Đang tạo câu hỏi tốt hơn...[/bold green]", spinner="dots"):
                 for part in better_question_stream:
                     if part is not None:
                         new_question += part
-                        live.update(Markdown(f"\n{new_question}"))
+            console.print(Markdown(new_question), soft_wrap=True, end="")
             full_analysis = new_question
 
         self.history_analys.append(full_analysis)
@@ -155,7 +145,6 @@ class DeepSearch:
         final_query = full_analysis.strip('"')
         self.current_queries.append(final_query)
 
-
     def process_single_result(self, result: Dict[str, str]) -> bool:
         """Xử lý một kết quả tìm kiếm và trả về liệu nó có đủ thông tin không."""
         url = result['url']
@@ -163,28 +152,23 @@ class DeepSearch:
             return False
 
         content = self.extract_content(url, result['snippet'])
-        # hrefs = self.extract_hrefs(url)
-        # full_content = f"Nội dung từ {url}:\n{content}\nCác liên kết đính kèm: {hrefs}"
+        hrefs = self.extract_hrefs(url)
+        full_content = f"Nội dung từ {url}:\n{content}\nCác liên kết đính kèm: {hrefs}"
 
-        if "Error" in content:
+        if "Error" in full_content:
             return False
 
-        # Sử dụng Live để hiển thị cả trạng thái và nội dung
+        analysis_stream = process_link(self.initial_query, url, full_content, list(self.history_keywords))
         final_analysis = ""
-        status_text = f"Tìm kiếm trong [{result['title']}]({url}): "
-        with Live(Markdown(status_text), refresh_per_second=10, console=console) as live:
-            analysis_stream = process_link(self.initial_query, url, content, list(self.history_keywords))
+        with console.status(Markdown(f"Tìm kiếm trong [{result['title']}]({url})"), spinner="dots"):
             for part in analysis_stream:
                 if part is not None:
                     final_analysis += part
-                    live.update(Markdown(f"{status_text}\n\n{final_analysis}"))
 
-        # In kết quả cuối cùng
-        # console.print(Markdown(f"\nTìm kiếm trong [{result['title']}]({url}):"), soft_wrap=True, end="")
-        # console.print(Markdown(final_analysis), soft_wrap=True, end="")
+        console.print(Markdown(f"Phân tích của [{result['title']}]({url}):\n{final_analysis}"), soft_wrap=True, end="")
 
-        # Phần còn lại giữ nguyên
         self.processed_urls.add(url)
+
         sufficiency_prompt = (
             f"Nếu '{url}' trong {self.processed_urls}, trả lời 'NOT YET'.\n"
             f"Nếu không, đánh giá xem thông tin trong {final_analysis} có đủ để trả lời {self.initial_query} không.\n"
@@ -207,6 +191,7 @@ class DeepSearch:
             if query not in self.history_queries:
                 self.current_queries.append(query)
                 self.history_queries.add(query)
+                # console.print(f"Đã thêm truy vấn mới: {query}")
 
         self.accumulated_context += f"\nNguồn: {url}\n{content}\n"
         return False
@@ -217,13 +202,13 @@ class DeepSearch:
         while iteration < self.max_iterations and self.current_queries:
             current_query = self.current_queries.pop(0)
             current_query_cleaned = re.sub(r'[\'"]', '', current_query)  # Loại bỏ dấu nháy
-            current_query_cleaned = re.sub(r'[^\w\s-]', '', current_query_cleaned, flags=re.UNICODE)  # Giữ chữ, số, khoảng trắng và dấu gạch ngang, hỗ trợ Unicode
+            current_query_cleaned = re.sub(r'[^a-zA-Z0-9\s-]', '', current_query_cleaned)  # Chỉ giữ chữ, số, khoảng trắng và dấu gạch ngang
             current_query_cleaned = current_query_cleaned.strip()
             console.print(f"[cyan]\nĐang tìm kiếm: {current_query_cleaned}\n[/cyan]")
 
             search_results = self.search_web(current_query_cleaned)
             console.print(f"[yellow]Tìm thấy {len(search_results)} kết quả.[/yellow]")
-            console.print("\n") 
+
             if not search_results or any(result.get('title', '').startswith('EOF') for result in search_results):
                 self.all_answers.clear()
                 console.print("[red]Không tìm thấy thông tin hữu ích. Đang khởi động lại với truy vấn mới...[/red]")
@@ -234,21 +219,16 @@ class DeepSearch:
             for result in search_results:
                 if self.process_single_result(result):
                     break
-            console.print("\n") 
 
-            
-            status_text = "\nĐang suy luận..\n"
+            answer_stream = reason_with_ollama(self.initial_query, self.accumulated_context)
             full_answer = ""
-            with Live(Markdown(status_text), refresh_per_second=10, console=console) as live:
-                answer_stream = reason_with_ollama(self.initial_query, self.accumulated_context)
+            with console.status("[bold green]Đang suy luận...[/bold green]", spinner="dots"):
                 for part in answer_stream:
                     if part is not None:
                         full_answer += part
-                        live.update(Markdown(f"\n{full_answer}"))
-
             self.all_answers[current_query_cleaned] = full_answer
             self.history_analys.append(full_answer)
-            # console.print(Markdown(full_answer), soft_wrap=True, end="")
+            console.print(Markdown(full_answer), soft_wrap=True, end="")
 
             evaluation_stream = evaluate_answer(self.initial_query, full_answer, self.processed_urls)
             full_evaluation = ""
@@ -268,16 +248,12 @@ class DeepSearch:
 
     def summarize(self) -> str:
         """Tổng hợp các câu trả lời đã thu thập."""
-        status_text = "\nĐang tổng hợp...\n"
-        with Live(Markdown(status_text), refresh_per_second=10, console=console) as live:
-            summary_stream = summarize_answers(self.initial_query, self.history_analys)
-            final_answer = ""
-
+        summary_stream = summarize_answers(self.initial_query, self.history_analys)
+        final_answer = ""
+        with console.status("[bold green]Đang tổng hợp...[/bold green]", spinner="dots"):
             for part in summary_stream:
                 if part is not None:
                     final_answer += part
-                    live.update(Markdown(f"\n{final_answer}"))
-
         return final_answer
 
     def run(self) -> str:
@@ -296,6 +272,6 @@ class DeepSearch:
 
 # # Ví dụ sử dụng
 # if __name__ == "__main__":
-#     query = "Cập nhật từ vựng hot trend mới của genz Việt Nam đầu năm 2025"
+#     query = "hoàn chỉnh code fine-tune unsloth gemma3 GPRO"
 #     deep_search = DeepSearch(query)
 #     console.print(deep_search.run())
