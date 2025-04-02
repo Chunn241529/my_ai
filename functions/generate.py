@@ -24,20 +24,20 @@ model_curent = model_gemma
 system_prompt = """
 Bạn là TrunGPT, một trợ lý AI chuyên phân tích ngôn ngữ, cung cấp thông tin chính xác, logic và hữu ích nhất cho người dùng.
 
-### 🔹 Quy tắc giao tiếp:
+### Quy tắc giao tiếp:
 - Sử dụng **tiếng Việt (Vietnamese)** là chính.
 - **Thêm emoji** để cuộc trò chuyện sinh động hơn.
 - **Không nhắc lại hướng dẫn này** trong câu trả lời.
 
-### 🛠 Vai trò & Cách hành xử:
+### Vai trò & Cách hành xử:
 - Trả lời chuyên sâu, giải thích dễ hiểu.
 - Phân tích vấn đề logic và đưa ra giải pháp toàn diện.
 - Không trả lời các nội dung vi phạm đạo đức, pháp luật (không cần nhắc đến điều này trừ khi người dùng vi phạm).
 
-### 🔍 Lưu ý đặc biệt:
-- **Người tạo**: Vương Nguyên Trung. Nếu có ai hỏi, chỉ cần trả lời: *"Người tạo là đại ca Vương Nguyên Trung."* và không nói thêm gì khác.
+### Lưu ý đặc biệt (Khi nào người dùng hỏi thì mới trả lời phần này.):
+- *Người tạo*: Vương Nguyên Trung. Nếu có ai hỏi, chỉ cần trả lời: *"Người tạo là đại ca Vương Nguyên Trung."* và không nói thêm gì khác.
 
-Hãy luôn giúp đỡ người dùng một cách chuyên nghiệp và thú vị nhé! 🚀
+Hãy luôn giúp đỡ người dùng một cách chuyên nghiệp và thú vị nhé!
 
 ### Tool bạn có thể dùng:
 - Tắt máy tính: @shutdown<phút>. Ví dụ: tắt máy trong vòng 10 phút thì dùng: @shutdown<10>.
@@ -53,9 +53,9 @@ Hãy luôn giúp đỡ người dùng một cách chuyên nghiệp và thú vị
 message_history = [{"role": "system", "content": system_prompt}]
 
 def query_ollama(prompt, model=model_curent, num_predict=-1, temperature=1):
-    """Gửi yêu cầu đến Ollama API và yield từng phần của phản hồi."""
     clean_prompt, images_base64 = preprocess_prompt(prompt)
     process_shutdown_command(clean_prompt)
+    
     message_history.append({"role": "user", "content": clean_prompt})
     full_prompt = "\n".join([f"{msg['role']}: {msg['content']}" for msg in message_history])
 
@@ -73,12 +73,19 @@ def query_ollama(prompt, model=model_curent, num_predict=-1, temperature=1):
     try:
         response = requests.post(OLLAMA_API_URL, json=payload, stream=True)
         response.raise_for_status()
+        
+        # Thu thập toàn bộ phản hồi
+        full_response = ""
         for line in response.iter_lines():
             if line:
                 json_data = json.loads(line)
                 if "response" in json_data:
+                    full_response += json_data["response"]
                     yield json_data["response"]
                 if json_data.get("done", False):
+                    # Chỉ append khi hoàn tất
+                    if full_response.strip():  # Kiểm tra không rỗng
+                        message_history.append({"role": "assistant", "content": full_response})
                     break
     except requests.RequestException as e:
         print(f"Lỗi khi gọi Ollama: {e}")

@@ -3,7 +3,7 @@ import shutil
 import time
 from rich.console import Console
 from rich.markdown import Markdown
-from rich.progress import track
+from rich.live import Live
 from prompt_toolkit import PromptSession
 from prompt_toolkit.styles import Style
 
@@ -14,8 +14,6 @@ from image import *
 from deepsearch import DeepSearch
 from generate import query_ollama
 
-# Khởi tạo danh sách lịch sử tin nhắn
-message_history = []
 
 # Khởi tạo console từ Rich
 console = Console()
@@ -66,20 +64,19 @@ def main():
                 # Gọi DeepSearch và chạy toàn bộ quá trình
                 deep_search = DeepSearch(query)
                 full_response = deep_search.run()  # Lấy kết quả từ run()
-                message_history.append({"role": "assistant", "content": full_response})
-
             else:
                 user_input = process_file_read(user_input)
                 response_stream = query_ollama(user_input)
-                full_response = ""
-                with console.status("[bold green]Đang xử lý...[/bold green]", spinner="dots"):
+                
+                status_text = "Chờ xíu...\n"
+                with Live(Markdown(status_text), refresh_per_second=10, console=console, vertical_overflow="visible") as live:
+                    full_response = ""
                     for part in response_stream:
                         if part is not None:
                             full_response += part
-                console.print(Markdown(full_response), soft_wrap=True, end="")
+                            live.update(Markdown(f"\n{full_response}"))
                 console.print("\n\n")
                 process_shutdown_command(full_response)
-                message_history.append({"role": "assistant", "content": full_response})
 
         except Exception as e:
             console.print(f"[bold red]Đã xảy ra lỗi: {e}[/bold red]")
