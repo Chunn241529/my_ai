@@ -2,7 +2,7 @@
 
 [![GitHub stars](https://img.shields.io/github/stars/Chunn241529/my_ai?style=social)](https://github.com/Chunn241529/my_ai/stargazers)
 [![GitHub forks](https://img.shields.io/github/forks/Chunn241529/my_ai?style=social)](https://github.com/Chunn241529/my_ai/network)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/Chunn241529/my_ai/blob/main/LICENSE)
+<!-- [![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/Chunn241529/my_ai/blob/main/LICENSE) -->
 
 **my_ai** là một dự án xây dựng hệ thống chatbot sử dụng trí tuệ nhân tạo (AI), được thiết kế để hỗ trợ giao tiếp thông minh và hiệu quả. Hệ thống có thể dễ dàng triển khai và sử dụng nhờ quá trình cài đặt đơn giản.
 
