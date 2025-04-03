@@ -45,7 +45,8 @@ class DeepSearch:
         self.history_analys: List[str] = []
 
         ### config live
-        self.refresh_second = 20 
+        self.refresh_second = 10 
+        self.vertical_overflow = "ellipsis" #"visible"
 
 
     def search_web(self, query: str) -> List[Dict[str, str]]:
@@ -128,7 +129,7 @@ class DeepSearch:
         self.history_keywords.update(keywords)  # Cập nhật set với từ khóa đã làm sạch
         # console.print(f"[red][DEBUG]{self.history_keywords}[/red]")
 
-        with Live(Markdown("Chờ xíu..."), refresh_per_second=self.refresh_second, console=console, vertical_overflow="visible") as live:
+        with Live(Markdown("Chờ xíu..."), refresh_per_second=self.refresh_second, console=console, vertical_overflow=self.vertical_overflow) as live:
             analysis_stream = analys_question(self.initial_query, self.history_keywords)
             full_analysis = ""
             
@@ -143,7 +144,7 @@ class DeepSearch:
             self.all_answers.clear()
             better_question_stream = better_question(self.initial_query)
             new_question = ""
-            with Live(Markdown("Chờ xíu..."), refresh_per_second=self.refresh_second, console=console, vertical_overflow="visible") as live:
+            with Live(Markdown("Chờ xíu..."), refresh_per_second=self.refresh_second, console=console, vertical_overflow=self.vertical_overflow) as live:
                 for part in better_question_stream:
                     if part is not None:
                         new_question += part
@@ -170,8 +171,6 @@ class DeepSearch:
             return False
 
         content = self.extract_content(url, result['snippet'])
-        # hrefs = self.extract_hrefs(url)
-        # full_content = f"Nội dung từ {url}:\n{content}\nCác liên kết đính kèm: {hrefs}"
 
         if "Error" in content:
             return False
@@ -180,7 +179,7 @@ class DeepSearch:
         final_analysis = ""
         console.print("\n")
         status_text = f"Tìm kiếm trong [{result['title']}]({url}): "
-        with Live(Markdown(status_text), refresh_per_second=self.refresh_second, console=console, vertical_overflow="visible") as live:
+        with Live(Markdown(status_text), refresh_per_second=self.refresh_second, console=console, vertical_overflow=self.vertical_overflow) as live:
             analysis_stream = process_link(self.initial_query, url, content, list(self.history_keywords))
             for part in analysis_stream:
                 if part is not None:
@@ -236,26 +235,23 @@ class DeepSearch:
             console.print("\n") 
 
             
-            status_text = "\nĐang suy luận..\n"
-            full_answer = ""
-            with Live(Markdown(status_text), refresh_per_second=self.refresh_second, console=console, vertical_overflow="visible") as live:
-                answer_stream = reason_with_ollama(self.initial_query, self.accumulated_context)
-                for part in answer_stream:
-                    if part is not None:
-                        full_answer += part
-                        live.update(Markdown(f"\n{full_answer}"))
-
-            self.all_answers[current_query_cleaned] = full_answer
-            self.history_analys.append(full_answer)
-            # console.print(Markdown(full_answer), soft_wrap=True, end="")
-
-            evaluation_stream = evaluate_answer(self.initial_query, full_answer, self.processed_urls)
+            evaluation_stream = evaluate_answer(self.initial_query, self.all_data , self.processed_urls)
             full_evaluation = ""
             for part in evaluation_stream:
                 if part is not None:
                     full_evaluation += part
 
             if "đã đủ" in full_evaluation.lower():
+                full_answer = ""
+                with Live(Markdown("\nĐang suy luận..\n"), refresh_per_second=self.refresh_second, console=console, vertical_overflow=self.vertical_overflow) as live:
+                    answer_stream = reason_with_ollama(self.initial_query, self.history_analys)
+                    for part in answer_stream:
+                        if part is not None:
+                            full_answer += part
+                            live.update(Markdown(f"\n{full_answer}"))
+
+                self.all_answers[current_query_cleaned] = full_answer
+                self.history_analys.append(full_answer)
                 break
             else:
                 new_queries = self.extract_queries(full_evaluation) or self.extract_queries(full_answer)
@@ -267,9 +263,8 @@ class DeepSearch:
 
     def summarize(self) -> str:
         """Tổng hợp các câu trả lời đã thu thập."""
-        console.clear()
         status_text = "\nĐang tổng hợp...\n"
-        with Live(Markdown(status_text), refresh_per_second=self.refresh_second, console=console, vertical_overflow="visible") as live:
+        with Live(Markdown(status_text), refresh_per_second=self.refresh_second, console=console, vertical_overflow=self.vertical_overflow) as live:
             summary_stream = summarize_answers(self.initial_query, self.history_analys)
             final_answer = ""
 
@@ -285,6 +280,7 @@ class DeepSearch:
         self.generate_keywords_and_analyze_question()
         self.analyze_prompt()
         self.search_and_process()
+        console.clear()
         final_answer = self.summarize()
         # Xóa lịch sử để giải phóng bộ nhớ
         self.history_analys.clear()
