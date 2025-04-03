@@ -4,10 +4,10 @@ import json
 from rich.console import Console
 
 # Import các script (giả định đã được định nghĩa)
-from commands import *
-from file import *
-from image import *
-from generate import *
+from functions.subfuncs.commands import *
+from functions.subfuncs.file import *
+from functions.subfuncs.image import *
+
 
 console = Console()
 
@@ -83,12 +83,42 @@ def query_ollama(prompt, model=model_curent, num_predict=-1, temperature=1):
                     full_response += json_data["response"]
                     yield json_data["response"]
                 if json_data.get("done", False):
-                    # Chỉ append khi hoàn tất
+
                     if full_response.strip():  # Kiểm tra không rỗng
                         message_history.append({"role": "assistant", "content": full_response})
+
                     break
     except requests.RequestException as e:
         print(f"Lỗi khi gọi Ollama: {e}")
+        yield None
+
+def evaluate(prompt, model=model_curent, num_predict=-1, temperature=1):
+    """Gửi yêu cầu đến Ollama API và yield từng phần của phản hồi."""
+
+    payload = {
+        "model": model,
+        "prompt": prompt,
+        "stream": True,
+        "options": {
+            "num_predict": num_predict,
+            "temperature": temperature
+        }
+    }
+
+    try:
+        response = requests.post(OLLAMA_API_URL, json=payload, stream=True)
+        response.raise_for_status()
+        full_response = ""
+        for line in response.iter_lines():
+            if line:
+                json_data = json.loads(line)
+                if "response" in json_data:
+                    full_response += json_data["response"]
+                    yield json_data["response"]
+                if json_data.get("done", False):
+                    break
+    except requests.RequestException as e:
+        print(f"Lỗi khi gọi API Ollama: {e}")
         yield None
 
 def generate_keywords(query, model=model_curent):
@@ -162,6 +192,17 @@ def reason_with_ollama(query, context, model=model_curent):
     """
     return query_ollama(prompt, model, num_predict=4000, temperature=0.7)
 
+def sufficiency_prompt(query, url, processed_urls, final_analysis, model=model_curent):
+    """Suy luận và trả lời câu hỏi dựa trên context và yield từng phần của phản hồi."""
+    sufficiency_prompt = (
+        f"Nếu '{url}' trong [{processed_urls}], trả lời 'NOT YET'.\n"
+        f"Nếu không, đánh giá xem thông tin trong {final_analysis} có đủ để trả lời {query} không.\n"
+        f"Trả lời 'OK' nếu đủ, 'NOT YET' nếu chưa."
+    )
+
+    return evaluate(sufficiency_prompt, model, num_predict=50, temperature=0.2)
+
+
 def evaluate_answer(query, answer, processed_urls, model=model_curent):
     """Đánh giá câu trả lời và yield từng phần của phản hồi."""
     eval_prompt = f"""
@@ -181,7 +222,7 @@ def evaluate_answer(query, answer, processed_urls, model=model_curent):
         * \"methods to learn English faster\"
         Đảm bảo luôn bắt đầu bằng 'Đã đủ' hoặc 'Chưa đủ', và truy vấn phải là cụm từ tìm kiếm, không phải câu hỏi.
     """
-    return query_ollama(eval_prompt, model, num_predict=50, temperature=0.5)
+    return evaluate(eval_prompt, model, num_predict=50, temperature=0.2)
 
 def summarize_answers(query, all_answers, model=model_curent):
     """Tổng hợp các câu trả lời và yield từng phần của phản hồi dưới dạng Markdown."""

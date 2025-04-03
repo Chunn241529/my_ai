@@ -8,11 +8,11 @@ from prompt_toolkit import PromptSession
 from prompt_toolkit.styles import Style
 
 # Import scripts
-from commands import process_shutdown_command
-from file import process_file_read
-from image import *
-from deepsearch import DeepSearch
-from generate import query_ollama
+from functions.subfuncs.commands import process_shutdown_command
+from functions.subfuncs.file import process_file_read
+from functions.subfuncs.image import *
+from functions.deepsearch import DeepSearch
+from functions.generate import query_ollama
 
 
 # Khởi tạo console từ Rich

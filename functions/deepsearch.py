@@ -8,15 +8,22 @@ import random
 from typing import List, Set, Dict
 
 # Giả định các module này đã được định nghĩa
-from commands import *
-from file import *
-from image import *
-from generate import *
+from functions.subfuncs.commands import *
+from functions.subfuncs.file import *
+from functions.subfuncs.image import *
+from functions.generate import *
 
 console = Console()
 
+
 class DeepSearch:
-    def __init__(self, initial_query: str, max_iterations: int = 5, max_results: int = 10):
+    #random number
+
+    def random_number(self, min_val: int, max_val: int) -> int:
+        """Tạo số ngẫu nhiên trong khoảng min_val đến max_val."""
+        return random.randint(min_val, max_val)
+
+    def __init__(self, initial_query: str, max_iterations: int = 5, max_results: int = random_number(5, 10, 25)):
         """
         Khởi tạo đối tượng DeepSearch với câu hỏi ban đầu và các tham số cấu hình.
         
@@ -37,9 +44,9 @@ class DeepSearch:
         self.processed_urls: Set[str] = set()
         self.history_analys: List[str] = []
 
-    def random_number(self, min_val: int, max_val: int) -> int:
-        """Tạo số ngẫu nhiên trong khoảng min_val đến max_val."""
-        return random.randint(min_val, max_val)
+        ### config live
+        self.refresh_second = 20 
+
 
     def search_web(self, query: str) -> List[Dict[str, str]]:
         """Tìm kiếm trên web bằng DuckDuckGo và trả về danh sách kết quả."""
@@ -121,7 +128,7 @@ class DeepSearch:
         self.history_keywords.update(keywords)  # Cập nhật set với từ khóa đã làm sạch
         # console.print(f"[red][DEBUG]{self.history_keywords}[/red]")
 
-        with Live(Markdown("Chờ xíu..."), refresh_per_second=10, console=console, vertical_overflow="visible") as live:
+        with Live(Markdown("Chờ xíu..."), refresh_per_second=self.refresh_second, console=console, vertical_overflow="visible") as live:
             analysis_stream = analys_question(self.initial_query, self.history_keywords)
             full_analysis = ""
             
@@ -136,7 +143,7 @@ class DeepSearch:
             self.all_answers.clear()
             better_question_stream = better_question(self.initial_query)
             new_question = ""
-            with Live(Markdown("Chờ xíu..."), refresh_per_second=10, console=console, vertical_overflow="visible") as live:
+            with Live(Markdown("Chờ xíu..."), refresh_per_second=self.refresh_second, console=console, vertical_overflow="visible") as live:
                 for part in better_question_stream:
                     if part is not None:
                         new_question += part
@@ -171,26 +178,18 @@ class DeepSearch:
 
         # Sử dụng Live để hiển thị cả trạng thái và nội dung
         final_analysis = ""
+        console.print("\n")
         status_text = f"Tìm kiếm trong [{result['title']}]({url}): "
-        with Live(Markdown(status_text), refresh_per_second=10, console=console, vertical_overflow="visible") as live:
+        with Live(Markdown(status_text), refresh_per_second=self.refresh_second, console=console, vertical_overflow="visible") as live:
             analysis_stream = process_link(self.initial_query, url, content, list(self.history_keywords))
             for part in analysis_stream:
                 if part is not None:
                     final_analysis += part
                     live.update(Markdown(f"{status_text}\n\n{final_analysis}"))
 
-        # In kết quả cuối cùng
-        # console.print(Markdown(f"\nTìm kiếm trong [{result['title']}]({url}):"), soft_wrap=True, end="")
-        # console.print(Markdown(final_analysis), soft_wrap=True, end="")
-
         # Phần còn lại giữ nguyên
         self.processed_urls.add(url)
-        sufficiency_prompt = (
-            f"Nếu '{url}' trong {self.processed_urls}, trả lời 'NOT YET'.\n"
-            f"Nếu không, đánh giá xem thông tin trong {final_analysis} có đủ để trả lời {self.initial_query} không.\n"
-            f"Trả lời 'OK' nếu đủ, 'NOT YET' nếu chưa."
-        )
-        sufficiency_stream = process_link(self.initial_query, url, sufficiency_prompt, list(self.history_keywords))
+        sufficiency_stream = sufficiency_prompt(query=self.initial_query, url=url, processed_urls=self.processed_urls, final_analysis=final_analysis)
         sufficiency_result = ""
         for part in sufficiency_stream:
             if part is not None:
@@ -239,7 +238,7 @@ class DeepSearch:
             
             status_text = "\nĐang suy luận..\n"
             full_answer = ""
-            with Live(Markdown(status_text), refresh_per_second=10, console=console, vertical_overflow="visible") as live:
+            with Live(Markdown(status_text), refresh_per_second=self.refresh_second, console=console, vertical_overflow="visible") as live:
                 answer_stream = reason_with_ollama(self.initial_query, self.accumulated_context)
                 for part in answer_stream:
                     if part is not None:
@@ -270,7 +269,7 @@ class DeepSearch:
         """Tổng hợp các câu trả lời đã thu thập."""
         console.clear()
         status_text = "\nĐang tổng hợp...\n"
-        with Live(Markdown(status_text), refresh_per_second=10, console=console, vertical_overflow="visible") as live:
+        with Live(Markdown(status_text), refresh_per_second=self.refresh_second, console=console, vertical_overflow="visible") as live:
             summary_stream = summarize_answers(self.initial_query, self.history_analys)
             final_answer = ""
 
