@@ -254,14 +254,15 @@ def summarize_answers(query, all_answers, model=model_curent):
 def thinking(query, model=model_reason):
     """Tổng hợp các câu trả lời và yield từng phần của phản hồi dưới dạng văn bản thuần túy."""
     summary_prompt = f"""
-        **Sử dụng tiếng Việt trong suốt quá trình.**
-        **không có phần mở đầu như "To answer this: " hay tương tự. Không sử dụng markdown**
-        Hãy trả lời câu hỏi '{query}' theo cách sau:  
-        1. Phân tích chi tiết từng khía cạnh của câu hỏi: Chia nhỏ câu hỏi thành các thành phần cụ thể. Mỗi thành phần nói gì? Ý nghĩa tiềm ẩn là gì? Liên hệ trực tiếp với câu hỏi ra sao? Đi sâu vào từng chi tiết, kể cả những yếu tố nhỏ nhất, giải thích tại sao chúng quan trọng.
-        2. Tổng hợp thành câu trả lời đầy đủ và chi tiết: Gộp tất cả các ý hợp lệ đã phân tích thành một phản hồi hoàn chỉnh. Không bỏ sót bất kỳ thông tin nào có giá trị, liệt kê các điểm một cách tự nhiên trong văn xuôi. Mở rộng ý bằng cách giải thích cặn kẽ, đưa ra ví dụ minh họa hoặc kịch bản giả định để làm rõ, nhưng luôn giữ trọng tâm là trả lời câu hỏi.  
-        3. Sắp xếp logic và có cấu trúc rõ ràng: Tổ chức câu trả lời theo thứ tự hợp lý, có thể theo thời gian nếu là quy trình, mức độ quan trọng nếu là ưu tiên, hoặc chia theo chủ đề nếu câu hỏi có nhiều khía cạnh. Thêm các câu nối mượt mà giữa các phần để đảm bảo mạch lạc, tránh nhảy cóc ý tưởng.  
-        4. Viết tự nhiên, sinh động và thu hút: Sử dụng ngôn ngữ thân thiện, dễ hiểu, như đang trò chuyện với một người bạn, nhưng vẫn giữ tính chuyên sâu.  
-        5. Bổ sung thông tin mở rộng: Dựa trên kiến thức của bạn, thêm thông tin ngoài ngữ cảnh câu hỏi như ví dụ thực tế, dữ liệu tham khảo, hoặc suy luận logic để làm phong phú câu trả lời. Đặt phần này trong một đoạn riêng để không làm rối phần chính.  
-        Kết quả cuối cùng phải là một hoặc nhiều đoạn văn dài, cực kỳ chi tiết, bao quát mọi khía cạnh hợp lệ, dưới dạng văn bản thuần túy. Đừng ngại dài dòng nếu điều đó giúp giải thích rõ ràng hơn, nhưng luôn đảm bảo mọi nội dung đều liên quan và có giá trị đối với câu hỏi '{query}'.
+        **Sử dụng tiếng Việt trong suốt quá trình:**
+            Hãy trả lời câu hỏi '{query}' theo cách sau:  
+            1. Phân tích chi tiết từng khía cạnh của câu hỏi: Chia nhỏ câu hỏi thành các thành phần cụ thể. Mỗi thành phần nói gì? Ý nghĩa tiềm ẩn là gì? Liên hệ trực tiếp với câu hỏi ra sao? Đi sâu vào từng chi tiết, kể cả những yếu tố nhỏ nhất, giải thích tại sao chúng quan trọng.
+            2. Tổng hợp thành câu trả lời đầy đủ và chi tiết: Gộp tất cả các ý hợp lệ đã phân tích thành một phản hồi hoàn chỉnh. Không bỏ sót bất kỳ thông tin nào có giá trị, liệt kê các điểm một cách tự nhiên trong văn xuôi. Mở rộng ý bằng cách giải thích cặn kẽ, đưa ra ví dụ minh họa hoặc kịch bản giả định để làm rõ, nhưng luôn giữ trọng tâm là trả lời câu hỏi.  
+            3. Sắp xếp logic và có cấu trúc rõ ràng: Tổ chức câu trả lời theo thứ tự hợp lý, có thể theo thời gian nếu là quy trình, mức độ quan trọng nếu là ưu tiên, hoặc chia theo chủ đề nếu câu hỏi có nhiều khía cạnh. Thêm các câu nối mượt mà giữa các phần để đảm bảo mạch lạc, tránh nhảy cóc ý tưởng.  
+            4. Viết tự nhiên, sinh động và thu hút: Sử dụng ngôn ngữ thân thiện, dễ hiểu, như đang trò chuyện với một người bạn, nhưng vẫn giữ tính chuyên sâu.  
+            5. Bổ sung thông tin mở rộng: Dựa trên kiến thức của bạn, thêm thông tin ngoài ngữ cảnh câu hỏi như ví dụ thực tế, dữ liệu tham khảo, hoặc suy luận logic để làm phong phú câu trả lời. Đặt phần này trong một đoạn riêng để không làm rối phần chính.  
+            Kết quả cuối cùng phải là một hoặc nhiều đoạn văn dài, cực kỳ chi tiết, bao quát mọi khía cạnh hợp lệ, dưới dạng văn bản thuần túy. Đừng ngại dài dòng nếu điều đó giúp giải thích rõ ràng hơn, nhưng luôn đảm bảo mọi nội dung đều liên quan và có giá trị đối với câu hỏi '{query}'.
+            **không có phần mở đầu như "To answer this: " hay tương tự. Không sử dụng markdown**
+
     """
     return query_ollama(summary_prompt, model, num_predict=4060, temperature=0.8)

@@ -215,7 +215,7 @@ class DeepSearch:
         while iteration < self.max_iterations and self.current_queries:
             current_query = self.current_queries.pop(0)
             current_query_cleaned = re.sub(r'[\'"]', '', current_query)  # Loại bỏ dấu nháy
-            current_query_cleaned = re.sub(r'[^\w\s-]', '', current_query_cleaned, flags=re.UNICODE)  # Giữ chữ, số, khoảng trắng và dấu gạch ngang, hỗ trợ Unicode
+            current_query_cleaned = re.sub(r'[^\w\s+-=/*]', '', current_query_cleaned, flags=re.UNICODE)  # Giữ chữ, số, khoảng trắng và dấu gạch ngang, hỗ trợ Unicode
             current_query_cleaned = current_query_cleaned.strip()
             console.print(f"[cyan]\nĐang tìm kiếm: {current_query_cleaned}\n[/cyan]")
 
