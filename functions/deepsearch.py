@@ -11,7 +11,7 @@ from typing import List, Set, Dict
 from functions.subfuncs.commands import *
 from functions.subfuncs.file import *
 from functions.subfuncs.image import *
-from functions.generate import *
+from functions.subfuncs.generate import *
 
 console = Console()
 
@@ -129,7 +129,7 @@ class DeepSearch:
         self.history_keywords.update(keywords)  # Cập nhật set với từ khóa đã làm sạch
         # console.print(f"[red][DEBUG]{self.history_keywords}[/red]")
 
-        with Live(Markdown("Chờ xíu..."), refresh_per_second=self.refresh_second, console=console, vertical_overflow=self.vertical_overflow) as live:
+        with Live(Markdown("Chờ xíu...🖐️"), refresh_per_second=self.refresh_second, console=console, vertical_overflow=self.vertical_overflow) as live:
             analysis_stream = analys_question(self.initial_query, self.history_keywords)
             full_analysis = ""
             
@@ -144,7 +144,7 @@ class DeepSearch:
             self.all_answers.clear()
             better_question_stream = better_question(self.initial_query)
             new_question = ""
-            with Live(Markdown("Chờ xíu..."), refresh_per_second=self.refresh_second, console=console, vertical_overflow=self.vertical_overflow) as live:
+            with Live(Markdown("Chờ xíu...🖐️"), refresh_per_second=self.refresh_second, console=console, vertical_overflow=self.vertical_overflow) as live:
                 for part in better_question_stream:
                     if part is not None:
                         new_question += part
@@ -248,13 +248,14 @@ class DeepSearch:
                     for part in answer_stream:
                         if part is not None:
                             full_answer += part
-                            live.update(Markdown(f"\n{full_answer}"))
+                            full_answers=full_answer.replace("<|begin_of_thought|>", "").replace("<|end_of_thought|>", "").replace("<|begin_of_solution|>", "").replace("<|end_of_solution|>", "")
+                            live.update(Markdown(f"\n{full_answers}"))
 
-                self.all_answers[current_query_cleaned] = full_answer
-                self.history_analys.append(full_answer)
+                self.all_answers[current_query_cleaned] = full_answers
+                self.history_analys.append(full_answers)
                 break
             else:
-                new_queries = self.extract_queries(full_evaluation) or self.extract_queries(full_answer)
+                new_queries = self.extract_queries(full_evaluation) or self.extract_queries(full_answers)
                 if new_queries:
                     relevant_query = new_queries[0]
                     if relevant_query not in self.current_queries and relevant_query not in self.all_answers:
@@ -263,8 +264,7 @@ class DeepSearch:
 
     def summarize(self) -> str:
         """Tổng hợp các câu trả lời đã thu thập."""
-        status_text = "\nĐang tổng hợp...\n"
-        with Live(Markdown(status_text), refresh_per_second=self.refresh_second, console=console, vertical_overflow=self.vertical_overflow) as live:
+        with Live(Markdown("Chờ xíu...🖐️"), refresh_per_second=self.refresh_second, console=console, vertical_overflow=self.vertical_overflow) as live:
             summary_stream = summarize_answers(self.initial_query, self.history_analys)
             final_answer = ""
 

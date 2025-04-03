@@ -10,25 +10,24 @@ from prompt_toolkit import PromptSession
 from prompt_toolkit.styles import Style
 
 # Import scripts
+from functions.chat import Chat
 from functions.subfuncs.commands import process_shutdown_command
 from functions.subfuncs.file import process_file_read
 from functions.subfuncs.image import *
 from functions.deepsearch import DeepSearch
 from functions.deepthink import DeepThink
-from functions.generate import query_ollama
 
-# Khởi tạo console từ Rich
 console = Console()
-
-# Định nghĩa style cho prompt với màu vàng nhạt
 prompt_style = Style.from_dict({"": "fg:#ffff99 bold"})
-
-# Khởi tạo PromptSession với style
 prompt_session = PromptSession("\n>>> ", style=prompt_style, prompt_continuation="")
 
-# Biến trạng thái cho các chế độ
 deep_search_active = False
 deep_think_active = False
+
+prefix="/"
+command_deepthink = f"{prefix}dt"
+command_deepsearch = f"{prefix}ds"
+command_bye= f"{prefix}bye"
 
 def delete_pycache(directory):
     """Xóa các thư mục __pycache__ trong thư mục chỉ định và trả về số lượng đã xóa."""
@@ -51,10 +50,27 @@ def display_welcome():
     """
     console.print(ascii_art, style="bold cyan", justify="left")
     console.print("")  # Khoảng cách
-    console.print("Gõ [bold magenta]!bye[/bold magenta] để thoát.")
-    console.print("Gõ [bold yellow]!ds_on[/bold yellow] để bật tìm kiếm sâu, [bold yellow]!ds_off[/bold yellow] để tắt.")
-    console.print("Gõ [bold green]!dt_on[/bold green] để bật suy luận sâu, [bold green]!dt_off[/bold green] để tắt.")
+    console.print(f"Gõ [bold magenta]{command_bye}[/bold magenta] để thoát.")
+    console.print(f"Gõ [bold yellow]{command_deepsearch}on[/bold yellow] để bật tìm kiếm sâu, [bold yellow]{command_deepsearch}off[/bold yellow] để tắt.")
+    console.print(f"Gõ [bold green]{command_deepthink}on[/bold green] để bật suy luận sâu, [bold green]{command_deepthink}off[/bold green] để tắt.")
     console.print("")  # Khoảng cách
+
+
+def toggle_deep_search(state: bool) -> None:
+    """Bật/tắt chế độ Deep Search"""
+    global deep_search_active
+    deep_search_active = state
+
+    status = "bật" if state else "tắt"
+    console.print(f"[bold yellow]Chế độ Deep Search đang được {status}.[/bold yellow]")
+
+def toggle_deep_think(state: bool) -> None:
+    """Bật/tắt chế độ Deep Think"""
+    global deep_think_active
+    deep_think_active = state
+
+    status = "bật" if state else "tắt"
+    console.print(f"[bold green]Chế độ Deep Think đang được {status}.[/bold green]")
 
 def main():
     global deep_search_active, deep_think_active  # Sử dụng biến toàn cục
@@ -63,59 +79,50 @@ def main():
         try:
             user_input = prompt_session.prompt()
             console.print("\n")
-            if user_input.lower() == "!bye":
+            if user_input.lower() == f"{command_bye}":
                 break
 
             # Xử lý toggle cho Deep Search
-            if user_input.lower() == "!ds_on":
-                deep_search_active = True
+            if user_input.lower() == f"{command_deepsearch}on":
                 console.clear()
-                display_welcome()
-                console.print("[bold yellow]Chế độ Deep Search đã được bật.[/bold yellow]")
+                display_welcome()   
+                toggle_deep_search(True)
                 continue
-            elif user_input.lower() == "!ds_off":
-                deep_search_active = False
+            elif user_input.lower() == f"{command_deepsearch}off":
                 console.clear()
-                display_welcome()
-                console.print("[bold yellow]Chế độ Deep Search đã được tắt.[/bold yellow]")
+                display_welcome() 
+                toggle_deep_search(False)
                 continue
 
             # Xử lý toggle cho Deep Think
-            elif user_input.lower() == "!dt_on":
-                deep_think_active = True
+            elif user_input.lower() == f"{command_deepthink}on":
                 console.clear()
-                display_welcome()
-                console.print("[bold green]Chế độ Deep Think đã được bật.[/bold green]")
+                display_welcome() 
+                toggle_deep_think(True)
                 continue
-            elif user_input.lower() == "!dt_off":
-                deep_think_active = False
+            elif user_input.lower() == f"{command_deepthink}off":
                 console.clear()
-                display_welcome()
-                console.print("[bold green]Chế độ Deep Think đã được tắt.[/bold green]")
+                display_welcome() 
+                toggle_deep_think(False)
                 continue
 
             # Xử lý đầu vào dựa trên chế độ
             if deep_search_active:
-                deep_search = DeepSearch(user_input)
+                _ = process_file_read(user_input)
+                deep_search = DeepSearch(_)
                 full_response = deep_search.run()
+                console.print("\n\n")
+                toggle_deep_search(deep_search_active)
             elif deep_think_active:
-                deep_think = DeepThink(user_input)
+                _ = process_file_read(user_input)
+                deep_think = DeepThink(_)
                 full_response = deep_think.run_think()
+                console.print("\n\n")
+                toggle_deep_think(deep_think_active)
             else:
-                user_input = process_file_read(user_input)
-                response_stream = query_ollama(user_input)
-                status_text = "Chờ xíu...\n"
-                with Live(
-                    Markdown(status_text),
-                    refresh_per_second=10,
-                    console=console,
-                    vertical_overflow="visible",
-                ) as live:
-                    full_response = ""
-                    for part in response_stream:
-                        if part is not None:
-                            full_response += part
-                            live.update(Markdown(f"\n{full_response}"))
+                _ = process_file_read(user_input)
+                chat = Chat(_)
+                full_response = chat.run_chat()
                 console.print("\n\n")
                 process_shutdown_command(full_response)
 

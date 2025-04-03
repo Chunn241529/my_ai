@@ -13,7 +13,7 @@ from functions.subfuncs.generate import *
 console = Console()
 
 
-class DeepThink:
+class Chat:
     #random number
 
     def __init__(self, initial_query: str):
@@ -32,24 +32,10 @@ class DeepThink:
         self.refresh_second = 10 
         self.vertical_overflow = "ellipsis" #"visible"
 
-
-    def thinking(self):
-        """Suy luận"""
-
-        with Live(Markdown("Suy luận..."), refresh_per_second=self.refresh_second, console=console, vertical_overflow=self.vertical_overflow) as live:
-            think = reason_with_ollama(self.initial_query, context="")
-            full_thinking=""
-            for part in think:
-                if part is not None:
-                    full_thinking += part
-                    full_answers=full_thinking.replace("<|begin_of_thought|>", "").replace("<|end_of_thought|>", "").replace("<|begin_of_solution|>", "").replace("<|end_of_solution|>", "")
-                    live.update(Markdown(f"\n{full_answers}"))
-            self.history_analys.append(full_answers)
-
-    def summarize_think(self) -> str:
+    def chat(self) -> str:
         """Tổng hợp các câu trả lời đã thu thập."""
         with Live(Markdown("Chờ xíu...🖐️"), refresh_per_second=self.refresh_second, console=console, vertical_overflow=self.vertical_overflow) as live:
-            summary_stream = summarize_answers(self.initial_query, self.history_analys)
+            summary_stream = query_ollama(self.initial_query)
             final_answer = ""
 
             for part in summary_stream:
@@ -59,9 +45,7 @@ class DeepThink:
 
         return final_answer
     
-    def run_think(self) -> str:
-        self.thinking()
-        console.clear()
-        final_answer = self.summarize_think()
+    def run_chat(self) -> str:
+        final_answer = self.chat()
         self.history_analys.clear()
         return f"\n{final_answer}"

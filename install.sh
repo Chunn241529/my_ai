@@ -1,5 +1,3 @@
-#!/bin/bash
-
 # Kiểm tra xem môi trường ảo đã tồn tại chưa
 if [ -d ".venv" ]; then
     echo "Môi trường ảo virtual environment đã tồn tại."
