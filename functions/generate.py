@@ -168,7 +168,7 @@ def evaluate_answer(query, answer, processed_urls, model=model_curent):
         Danh sách URL đã phân tích: {processed_urls}
         Nếu URL này trùng với bất kỳ URL nào trong danh sách đã phân tích, trả lời 'Chưa đủ' và không đánh giá thêm.
         Hãy đánh giá xem câu trả lời '{answer}' đã cung cấp đầy đủ thông tin để giải quyết câu hỏi '{query}' chưa.
-        - 'Đầy đủ' nghĩa là câu trả lời đáp ứng trực tiếp, rõ ràng và không thiếu khía cạnh quan trọng nào của câu hỏi.
+        - 'Đã đủ' nghĩa là câu trả lời đáp ứng trực tiếp, rõ ràng và không thiếu khía cạnh quan trọng nào của câu hỏi.
         - 'Chưa đủ' nghĩa là còn thiếu thông tin cần thiết hoặc không trả lời đúng trọng tâm.
         Trả lời bắt đầu bằng 'Đã đủ' nếu thông tin đầy đủ, hoặc 'Chưa đủ' nếu thiếu thông tin cần thiết.
         - Nếu 'Đã đủ', chỉ viết 'Đã đủ', không thêm gì nữa.
