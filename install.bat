@@ -33,6 +33,8 @@ pip install numpy
 pip install ollama
 pip install duckduckgo_search
 pip install beautifulsoup4
+pip install yt-dlp pygame
+pip install youtube-search
 
 echo Da xong!
 

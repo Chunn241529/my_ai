@@ -7,7 +7,6 @@ from typing import List
 # Giả định các module này đã được định nghĩa
 from functions.subfuncs.commands import *
 from functions.subfuncs.file import *
-from functions.subfuncs.image import *
 from functions.subfuncs.generate import *
 
 console = Console()

@@ -25,8 +25,10 @@ pip3 install python-dotenv
 pip3 install prompt_toolkit
 pip3 install pillow
 pip3 install numpy
-pip3 install ollama
 pip3 install duckduckgo_search
 pip3 install beautifulsoup4
+pip3 install yt-dlp pygame
+pip3 install youtube-search
+pip3 install gtts pydub
 
 echo "Đã xong!"
