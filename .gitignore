@@ -1,3 +1,5 @@
 .venv
 functions/__pycache__
 clean.sh
+.env
+modules

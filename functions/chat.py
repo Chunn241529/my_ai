@@ -1,4 +1,7 @@
 import threading
+import time
+import re
+import os
 from bs4 import BeautifulSoup
 from duckduckgo_search import DDGS
 import pygame
@@ -11,7 +14,8 @@ from typing import List
 from functions.subfuncs.commands import *
 from functions.subfuncs.file import *
 from functions.subfuncs.generate import *
-from functions.subfuncs.tts import run_viettts_synthesis  # Import TTS function
+from functions.subfuncs.tts import run_viettts_synthesis
+from functions.subfuncs.music import play_music
 
 console = Console()
 
@@ -26,6 +30,9 @@ class Chat:
         self.vertical_overflow = "ellipsis"
         self.only_url = self.extract_url_from_input(initial_query) or ""
         os.environ["JAX_PLATFORM_NAME"] = "cpu"
+        # Lock để đồng bộ giữa TTS và music
+        self.audio_lock = threading.Lock()
+
     def extract_url_from_input(self, input_text: str) -> str:
         """Trích xuất URL đầu tiên từ chuỗi đầu vào của người dùng."""
         URL_PATTERN = r"https?://(?:[-\w.]|(?:%[\da-fA-F]{2}))+[^\s]*"
@@ -61,16 +68,17 @@ class Chat:
             return (
                 f"Không thể truy cập {url}: {str(e)}. Tôi sẽ thử tìm thông tin bổ sung."
             )
-        
+
     def play_speech(self, file_path):
-        """Phát file âm thanh bằng pygame mixer."""
-        try:
-            pygame.mixer.music.load(file_path)
-            pygame.mixer.music.play()
-            while pygame.mixer.music.get_busy():  # Chờ cho đến khi phát xong
-                time.sleep(0.1)
-        except Exception as e:
-            console.print(f"[bold red]Lỗi khi phát âm thanh: {e}[/bold red]")   
+        """Phát file âm thanh TTS với lock để tránh chồng chéo."""
+        with self.audio_lock:
+            try:
+                pygame.mixer.music.load(file_path)
+                pygame.mixer.music.play()
+                while pygame.mixer.music.get_busy():
+                    time.sleep(0.1)
+            except Exception as e:
+                console.print(f"[bold red]Lỗi khi phát TTS: {e}[/bold red]")
 
     def chat(self) -> str:
         """Tổng hợp các câu trả lời đã thu thập."""
@@ -106,22 +114,32 @@ class Chat:
                     final_answer += part
                     live.update(Markdown(f"\n{final_answer}"))
 
+            # Xử lý TTS
+            output_file = "assets/infore/clip.wav"
+            word_count = len(final_answer.split())
+            tts_thread = None
+            if word_count <= 500:
+                if not pygame.mixer.music.get_busy():
+                    success = run_viettts_synthesis(text=final_answer, output=output_file)
+                    if success:
+                        tts_thread = threading.Thread(
+                            target=self.play_speech, args=(output_file,), daemon=True
+                        )
+                        tts_thread.start()
+                else:
+                    console.print("")
+
+
         self.history_analys.append(final_answer)
-        return final_answer
+        return final_answer, tts_thread
+
+    def extract_music_url(self, query: str) -> str:
+        """Trích xuất URL nhạc từ query."""
+        music_pattern = r"@m<([^>]+)>"  # Biểu thức chính quy để tìm @m<tên bài hát>
+        match = re.search(music_pattern, query)
+        return match.group(1).strip() if match else ""
 
     def run_chat(self) -> str:
-        final_answer = self.chat()
+        final_answer, tts_thread = self.chat()
         self.history_analys.clear()
-
-        # Tích hợp TTS ngay sau khi stream hoàn tất
-        output_file = "assets/infore/clip.wav"
-        word_count = len(final_answer.split())
-        if word_count <= 100:  # Giới hạn số từ nếu cần
-            success = run_viettts_synthesis(text=final_answer, output=output_file)
-            if success:
-                # Phát âm thanh trong một luồng riêng để không chặn giao diện
-                threading.Thread(
-                    target=self.play_speech, args=(output_file,), daemon=True
-                ).start()
-
-        return f"\n{final_answer}"
+        return f"\n{final_answer}", tts_thread

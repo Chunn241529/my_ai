@@ -1,3 +1,5 @@
+from prompt_toolkit import PromptSession
+from prompt_toolkit.styles import Style
 import yt_dlp
 import pygame
 from youtube_search import YoutubeSearch
@@ -7,70 +9,33 @@ from rich.markdown import Markdown
 
 console = Console()
 
-# Khởi tạo pygame mixer để phát nhạc
+# Khởi tạo mixer
 pygame.mixer.init()
 
+# Biến toàn cục để quản lý trạng thái
+music_queue = []
+is_looping = False
+current_song = None
 
-def search_music(query: str) -> list:
-    """Tìm kiếm 5 kết quả trên YouTube và trả về danh sách các bài hát."""
+def download_and_load_song(query: str):
+    """Tải bài hát từ YouTube và chuẩn bị phát"""
+    global current_song
     try:
         console.print(f"[cyan]Tìm kiếm:[/cyan] [bold yellow]{query}[/bold yellow]")
-        results = YoutubeSearch(query, max_results=5).to_dict()
-        
+        results = YoutubeSearch(query, max_results=1).to_dict()
+
         if not results:
             console.print("[red]Không tìm thấy kết quả![/red]")
-            return []
-        
-        # console.print(f"\n")
-        # # Hiển thị danh sách kết quả
-        # for i, result in enumerate(results):
-        #     console.print(f"[bold green]{i + 1}.[/bold green] {result['title']} - {result['channel']}")
-        
-        return results
-    except Exception as e:
-        console.print(f"[red]Có lỗi xảy ra khi tìm kiếm: {str(e)}[/red]")
-        return []
+            return False
 
-
-def select_music(results: list, choice: int) -> str:
-    """Chọn bài hát từ danh sách kết quả dựa trên số thứ tự (1-5). Trả về URL."""
-    if not results:
-        console.print("[red]Danh sách kết quả rỗng! Không thể chọn bài hát.[/red]")
-        return ""
-    
-    if not isinstance(choice, int):
-        console.print("[red]Lựa chọn phải là một số nguyên![/red]")
-        return ""
-    
-    if choice < 1 or choice > len(results):
-        console.print(f"[red]Lựa chọn không hợp lệ! Vui lòng chọn từ 1 đến {len(results)}.[/red]")
-        return ""
-    
-    try:
-        console.print(f"\n")
-        video_id = results[choice - 1]['id']  # Lấy ID của bài hát được chọn
+        video_id = results[0]['id']
         url = f"https://www.youtube.com/watch?v={video_id}"
-        console.print(f"[cyan]Đã chọn:[/cyan] [bold yellow]{results[choice - 1]['title']}[/bold yellow]")
-        return url
-    except IndexError:
-        console.print("[red]Lỗi: Chỉ số vượt quá danh sách kết quả![/red]")
-        return ""
-    except Exception as e:
-        console.print(f"[red]Có lỗi khi chọn bài hát: {str(e)}[/red]")
-        return ""
-
-
-def play_music_from_url(url: str):
-    """Tải và phát nhạc từ URL YouTube."""
-    if not url:
-        console.print("[red]Không có URL để phát nhạc![/red]")
-        return
-    
-    try:
-        # Tạo thư mục assets/music nếu chưa tồn tại
         os.makedirs("assets/music", exist_ok=True)
-        
-        # Cấu hình yt_dlp để tải audio
+
+        # Xóa file cũ nếu tồn tại
+        if os.path.exists('assets/music/song.mp3'):
+            os.remove('assets/music/song.mp3')
+
         ydl_opts = {
             'format': 'bestaudio/best',
             'quiet': True,
@@ -81,40 +46,53 @@ def play_music_from_url(url: str):
                 'preferredquality': '320',
             }],
         }
-        
-        # Tải audio từ URL
+
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
-        
-        # Phát nhạc từ file vừa tải
+
         pygame.mixer.music.load('assets/music/song.mp3')
-        pygame.mixer.music.play()
-        console.print(Markdown("`Đang phát nhạc...`"))
-        console.print(Markdown("\nNhập *câu hỏi* và nhấn `ENTER` để tiếp tục\n"))
-        
+        current_song = {'title': results[0]['title'], 'url': url, 'query': query}
+        return True
 
-        
-        # Chờ nhạc phát xong và xóa file
-        while pygame.mixer.music.get_busy():
-            pygame.time.Clock().tick(10)
-        
-            if os.path.exists('assets/music/song.mp3'):
-                os.remove('assets/music/song.mp3')
-            
     except Exception as e:
-        console.print(f"[red]Có lỗi khi phát nhạc: {str(e)}[/red]")
+        console.print(f"[red]Có lỗi xảy ra: {str(e)}[/red]")
+        return False
 
+def play_music(query: str):
+    """Phát một bài hát"""
+    if download_and_load_song(query):
+        pygame.mixer.music.play()
+        console.print(Markdown(f"Đang phát: [{current_song['title']}]({current_song['url']})"))
 
-# # Ví dụ sử dụng
-# if __name__ == "__main__":
-#     # Bước 1: Tìm kiếm nhạc
-#     search_query = "Như mộng - châu thâm"
-#     results = search_music(search_query)
-    
-#     # Bước 2: Chọn bài hát (giả sử chọn số 1)
-#     if results:
-#         selected_url = select_music(results, 1)  # Chọn bài đầu tiên
-        
-#         # Bước 3: Phát nhạc
-#         if selected_url:
-#             play_music_from_url(selected_url)
+def toggle_loop():
+    """Bật/tắt chế độ lặp lại bài hát hiện tại"""
+    global is_looping
+    is_looping = not is_looping
+    state = "bật" if is_looping else "tắt"
+    console.print(f"[green]Chế độ lặp lại đã được {state}[/green]")
+
+def add_to_queue(query: str):
+    """Thêm bài hát vào hàng chờ"""
+    music_queue.append(query)
+    console.print(f"[green]Đã thêm '{query}' vào hàng chờ[/green]")
+    console.print(f"[cyan]Số bài trong hàng chờ: {len(music_queue)}[/cyan]")
+
+def play_next():
+    """Phát bài hát tiếp theo trong hàng chờ hoặc lặp lại nếu bật chế độ loop"""
+    global current_song
+    if pygame.mixer.music.get_busy():  # Nếu đang phát thì không làm gì
+        return
+
+    if is_looping and current_song:
+        pygame.mixer.music.play()
+        console.print(Markdown(f"Đang lặp lại: [{current_song['title']}]({current_song['url']})"))
+    elif music_queue:
+        next_song = music_queue.pop(0)
+        play_music(next_song)
+
+# Ví dụ sử dụng riêng lẻ các hàm
+if __name__ == "__main__":
+    # Gọi từng hàm riêng lẻ
+    play_music("Tháp rơi tự do")  # Phát bài hát đầu tiên
+    add_to_queue("Havana")        # Thêm bài hát vào hàng chờ
+    toggle_loop()                 # Bật chế độ lặp lại

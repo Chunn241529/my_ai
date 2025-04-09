@@ -29,6 +29,8 @@ pip3 install duckduckgo_search
 pip3 install beautifulsoup4
 pip3 install yt-dlp pygame
 pip3 install youtube-search
-pip3 install gtts pydub
+pip3 install -U openai-whisper
+pip3 install setuptools-rust
+
 
 echo "Đã xong!"

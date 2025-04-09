@@ -25,7 +25,7 @@ class DeepSearch:
     def __init__(
         self,
         initial_query: str,
-        max_iterations: int = 5,
+        max_iterations: int = 2,
         max_results: int = random_number(5, 10, 25),
     ):
         """
@@ -48,12 +48,9 @@ class DeepSearch:
         self.processed_urls: Set[str] = set()
         self.history_analys: List[str] = []
 
-        
-
         ### config live
         self.refresh_second = 10
         self.vertical_overflow = "ellipsis"  # "visible"
-    
 
     def search_web(self, query: str) -> List[Dict[str, str]]:
         """Tìm kiếm trên web bằng DuckDuckGo và trả về danh sách kết quả."""
@@ -94,31 +91,10 @@ class DeepSearch:
             return [f"Error fetching {url}: {str(e)}"]
 
     def extract_queries(self, text):
-        """Trích xuất các truy vấn từ văn bản, đảm bảo đa dạng."""
-        import re
-        
-        # Tìm dòng "Đề xuất truy vấn:" và lấy truy vấn
-        match = re.search(r"Đề xuất truy vấn:\s*\*\s*\"([^\"]+)\"", text)
-        if match:
-            base_query = match.group(1)
-        else:
-            return []
-
-        # Tạo các biến thể của truy vấn dựa trên base_query
-        words = base_query.split()
-        if len(words) < 2:
-            return [base_query]
-        
-        # Ví dụ: Nếu base_query là "best vietnamese text to speech models hugging face"
-        variations = [
-            base_query,  # Giữ nguyên truy vấn gốc
-            " ".join(words[:3]),  # "best vietnamese text"
-            " ".join(words[-3:]),  # "models hugging face"
-            f"{words[0]} {words[-2]} {words[-1]}",  # "best hugging face"
-        ]
-        
-        # Loại bỏ trùng lặp và trả về
-        return list(dict.fromkeys(variations))[:3]  # Giới hạn tối đa 3 truy vấn
+        """Trích xuất các truy vấn từ văn bản."""
+        lines = text.splitlines()
+        queries = [line.strip() for line in lines if line.strip() and line != "NOT YET"]
+        return queries[:4]  # Giới hạn tối đa 4 truy vấn
 
     def generate_keywords_and_analyze_question(self):
         """Tạo từ khóa và phân tích câu hỏi ban đầu."""
@@ -143,7 +119,7 @@ class DeepSearch:
         # console.print(f"[red][DEBUG]{self.history_keywords}[/red]")
 
         with Live(
-            Markdown("Chờ xíu...🖐️"),
+            Markdown("Đang phân tích câu hỏi... 🖐️"),
             refresh_per_second=self.refresh_second,
             console=console,
             vertical_overflow=self.vertical_overflow,
@@ -154,7 +130,14 @@ class DeepSearch:
             for part in analysis_stream:
                 if part is not None:
                     full_analysis += part
-                    clean_full = full_analysis.replace("<|begin_of_thought|>", "").replace("<|end_of_thought|>", "").replace("<|begin_of_solution|>", "").replace("<|end_of_solution|>", "")
+                    clean_full = (
+                        full_analysis.replace("<|begin_of_thought|>", "")
+                        .replace("<|end_of_thought|>", "")
+                        .replace("<|begin_of_solution|>", "")
+                        .replace("<|end_of_solution|>", "")
+                        # full_analysis.replace("<think>", "")
+                        # .replace("</think>", "")
+                    )
                     live.update(Markdown(f"\n{clean_full}"))
 
         # console.print(Markdown(full_analysis), soft_wrap=True, end="")
@@ -178,40 +161,51 @@ class DeepSearch:
         self.history_analys.append(clean_full)
 
     def analyze_prompt(self):
-        """Phân tích gợi ý để tạo truy vấn đầu tiên."""
-        analysis_stream = analys_prompt(self.history_analys)
+        """Phân tích gợi ý để tạo danh sách truy vấn ban đầu."""
+        analysis_stream = analys_prompt(
+            self.history_analys
+        )  # Dùng initial_query thay vì history_analys
         full_analysis = ""
         for part in analysis_stream:
             if part is not None:
                 full_analysis += part
-        final_query = full_analysis.strip('"')
-        self.current_queries.append(final_query)
+
+        clean_full_analysis = (
+            full_analysis.replace("1. ", "")
+            .replace("2. ", "")
+            .replace("3. ", "")
+            .replace("4. ", "")
+        )
+        # Tách các truy vấn từ full_analysis (mỗi truy vấn trên một dòng)
+        queries = [
+            q.strip('"').strip() for q in clean_full_analysis.splitlines() if q.strip()
+        ]
+        for query in queries:
+            if query and query not in self.history_queries:
+                self.current_queries.append(query)
+                self.history_queries.add(query)
 
     def process_single_result(self, result: Dict[str, str]) -> bool:
         """Xử lý một kết quả tìm kiếm và trả về liệu nó có đủ thông tin không. Trả về False tối đa 3 lần."""
-        # Khởi tạo biến đếm False nếu chưa có (giả sử là thuộc tính của class)
-        if not hasattr(self, 'false_count'):
+        if not hasattr(self, "false_count"):
             self.false_count = 0
 
         url = result["url"]
         if url in self.processed_urls:
-            if self.false_count < 3:
+            if self.false_count < 2:
                 self.false_count += 1
                 return False
-            return True  # Nếu đã đủ 3 lần False trước đó, trả về True để dừng
+            return True
 
         content = self.extract_content(url, result["snippet"])
-
         if "Error" in content:
-            if self.false_count < 3:
+            if self.false_count < 2:
                 self.false_count += 1
                 return False
-            return True  # Nếu đã đủ 3 lần False trước đó, trả về True để dừng
+            return True
 
-        # Sử dụng Live để hiển thị cả trạng thái và nội dung
         final_analysis = ""
-        console.print("\n")
-        status_text = f"Tìm kiếm trong [{result['title']}]({url}): "
+        status_text = f"Tìm kiếm trong [{result['title']}]({url})"
         with Live(
             Markdown(status_text),
             refresh_per_second=self.refresh_second,
@@ -224,15 +218,20 @@ class DeepSearch:
             for part in analysis_stream:
                 if part is not None:
                     final_analysis += part
-                    clean_final_analysis = final_analysis.replace("<|begin_of_thought|>", "").replace("<|end_of_thought|>", "").replace("<|begin_of_solution|>", "").replace("<|end_of_solution|>", "").replace("<|end|> ", "")
+                    clean_final_analysis = (
+                        final_analysis.replace("<|begin_of_thought|>", "")
+                        .replace("<|end_of_thought|>", "")
+                        .replace("<|begin_of_solution|>", "")
+                        .replace("<|end_of_solution|>", "")
+                        .replace("<|end|> ", "")
+                    )
                     live.update(Markdown(f"{status_text}\n\n{clean_final_analysis}"))
 
-        # Phần còn lại giữ nguyên
         self.processed_urls.add(url)
         sufficiency_stream = sufficiency_prompt(
             query=self.initial_query,
             url=url,
-            processed_urls=self.processed_urls,
+            processed_urls=",".join(self.processed_urls),  # Chuyển thành chuỗi
             final_analysis=clean_final_analysis,
         )
         sufficiency_result = ""
@@ -246,47 +245,48 @@ class DeepSearch:
             self.all_data += f"{url}: {clean_final_analysis}\n"
             return True
 
-        new_queries = self.extract_queries(clean_final_analysis)
+        # Lấy danh sách truy vấn bổ sung từ sufficiency_result
+        new_queries = [
+            q.strip()
+            for q in sufficiency_result.splitlines()
+            if q.strip() and q != "NOT YET"
+        ]
         for query in new_queries:
-            if query not in self.history_queries:
+            if query and query not in self.history_queries:
                 self.current_queries.append(query)
                 self.history_queries.add(query)
 
         self.all_answers[self.initial_query] = clean_final_analysis
         self.history_analys.append(clean_final_analysis)
         self.all_data += f"{url}: {clean_final_analysis}\n"
-
         self.accumulated_context += f"\nNguồn: {url}\n{content}\n"
-        
-        # Kiểm tra và cập nhật false_count
-        if self.false_count < 3:
+
+        if self.false_count < 2:
             self.false_count += 1
             return False
-        return True  # Nếu đã đủ 3 lần False, trả về True để dừng
-
+        return True
 
     def search_and_process(self):
         """Thực hiện tìm kiếm và xử lý kết quả trong tối đa max_iterations lần."""
         iteration = 0
         while iteration < self.max_iterations and self.current_queries:
             current_query = self.current_queries.pop(0)
-            current_query_cleaned = re.sub(
-                r'[\'"]', "", current_query
-            )  # Loại bỏ dấu nháy
+            current_query_cleaned = re.sub(r'[\'"]', "", current_query)
             current_query_cleaned = re.sub(
                 r"[^\w\s+-=/*]", "", current_query_cleaned, flags=re.UNICODE
-            )  # Giữ chữ, số, khoảng trắng và dấu gạch ngang, hỗ trợ Unicode
+            )
             current_query_cleaned = current_query_cleaned.strip()
-            console.print(f"[cyan]\nĐang tìm kiếm: {current_query_cleaned}\n[/cyan]")
+            console.print(f"[cyan]\nĐang tìm kiếm: {current_query_cleaned}[/cyan]")
 
             try:
                 search_results = self.search_web(current_query_cleaned)
-                console.print(f"[yellow]Tìm thấy {len(search_results)} kết quả.[/yellow]")
-                console.print("\n")
+                console.print(
+                    f"[yellow]Tìm thấy {len(search_results)} kết quả.[/yellow]"
+                )
                 if not search_results or any(
-                    result.get("title", "").startswith("EOF") for result in search_results
+                    result.get("title", "").startswith("EOF")
+                    for result in search_results
                 ):
-                    self.all_answers.clear()
                     console.print(
                         "[red]Không tìm thấy thông tin hữu ích. Đang khởi động lại với truy vấn mới...[/red]"
                     )
@@ -297,18 +297,19 @@ class DeepSearch:
                 for result in search_results:
                     if self.process_single_result(result):
                         break
-                console.print("\n")
 
                 evaluation_stream = evaluate_answer(
-                    self.initial_query, self.history_analys, self.processed_urls
+                    self.initial_query,
+                    self.history_analys[-1],
+                    self.processed_urls,  # Chỉ dùng phân tích cuối
                 )
                 full_evaluation = ""
                 for part in evaluation_stream:
                     if part is not None:
                         full_evaluation += part
-
+                console.print("\n")
                 if "đã đủ" in full_evaluation.lower():
-                    full_answer = ""
+                    full_reason = ""
                     with Live(
                         Markdown("\nĐang suy luận..\n"),
                         refresh_per_second=self.refresh_second,
@@ -316,45 +317,34 @@ class DeepSearch:
                         vertical_overflow=self.vertical_overflow,
                     ) as live:
                         answer_stream = reason_with_ollama(
-                            self.initial_query, self.history_analys
+                            self.initial_query,
+                            self.history_analys,
                         )
                         for part in answer_stream:
                             if part is not None:
-                                full_answer += part
-                                full_answers = (
-                                    full_answer.replace("<|begin_of_thought|>", "")
+                                full_reason += part
+                                full_reason_answers = (
+                                    full_reason.replace("<|begin_of_thought|>", "")
                                     .replace("<|end_of_thought|>", "")
                                     .replace("<|begin_of_solution|>", "")
                                     .replace("<|end_of_solution|>", "")
                                     .replace("|<|end_of_thought|", "")
                                 )
-                                live.update(Markdown(f"\n{full_answers}"))
+                                live.update(Markdown(f"\n{full_reason_answers}"))
 
-                    self.all_answers[current_query_cleaned] = full_answers
-                    self.history_analys.append(full_answers)
+                    self.all_answers[current_query_cleaned] = full_reason_answers
+                    self.history_analys.append(full_reason_answers)
                     break
                 else:
-                    # Lấy các truy vấn mới từ full_evaluation
-                    new_queries = self.extract_queries(full_evaluation)
-                    console.print(f"[magenta]New queries generated: {new_queries}[/magenta]")
-
-                    # Thêm các truy vấn mới, tránh trùng lặp
-                    added_any = False
+                    new_queries = [
+                        q.strip()
+                        for q in full_evaluation.splitlines()
+                        if q.strip() and "đề xuất" not in q.lower()
+                    ]
                     for query in new_queries:
-                        if (
-                            query not in self.current_queries
-                            and query not in self.history_queries
-                            and query not in self.all_answers
-                        ):
+                        if query and query not in self.history_queries:
                             self.current_queries.append(query)
                             self.history_queries.add(query)
-                            console.print(f"[green]Added query: {query}[/green]")
-                            added_any = True
-
-                    # Nếu không có truy vấn mới, thoát vòng lặp
-                    if not added_any:
-                        console.print("[red]No more unique queries available. Exiting...[/red]")
-                        break
 
             except Exception as e:
                 console.print(f"[red]Đã xảy ra lỗi: {str(e)}[/red]")
@@ -385,13 +375,13 @@ class DeepSearch:
         self.generate_keywords_and_analyze_question()
         self.analyze_prompt()
         self.search_and_process()
-        console.clear()
         final_answer = self.summarize()
         # Xóa lịch sử để giải phóng bộ nhớ
         self.history_analys.clear()
         self.history_queries.clear()
         self.history_keywords.clear()
         self.all_answers.clear()
+        self.current_queries.clear()
         return f"\n{final_answer}"
 
 
