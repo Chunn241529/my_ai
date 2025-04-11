@@ -9,7 +9,7 @@
 ## 🌟 Tính năng nổi bật
 - **Tương tác AI thông minh:** my_ai có khả năng hiểu ngữ cảnh và phản hồi tự nhiên.
 - **Tính năng deepsearch:** Có khả năng tìm kiếm sâu, nghiên cứu dựa trên các thông tin tìm kiếm, suy luận và đưa ra câu trả lời.
-- **Tính năng deepthink:** Có khả năng suy luận và đưa ra câu trả lời tốt nhất. (chưa release)
+- **Tính năng deepthink:** Có khả năng suy luận và đưa ra câu trả lời tốt nhất.
 - **Tính năng speech với AI:** Nói chuyện với AI. (chưa release)
 
 ---
