@@ -121,8 +121,8 @@ def main():
 
     while True:
         try:
+
             user_input = prompt_session.prompt()
-            # Kiểm tra nếu user_input rỗng thì yêu cầu nhập lại
             while not user_input.strip():
                 console.print("\n")
                 display_typing_effect("Vui lòng nhập nội dung, không để trống!", 0.5)
@@ -170,23 +170,27 @@ def main():
 
             # Xử lý đầu vào dựa trên chế độ
             if deep_search_active:
+                console.clear()
                 _ = process_file_read(user_input)
                 deep_search = DeepSearch(_)
                 full_response = deep_search.run()
                 console.print("\n\n")
                 toggle_deep_search(deep_search_active)
             elif deep_think_active:
+                console.clear()
                 _ = process_file_read(user_input)
                 deep_think = DeepThink(_)
                 full_response = deep_think.run_think()
                 console.print("\n\n")
                 toggle_deep_think(deep_think_active)
             else:
+                console.clear()
                 _ = process_file_read(user_input)
                 chat = Chat(_)
-                full_response, tts_thread = chat.run_chat()
-                if tts_thread:
-                    tts_thread.join()
+                # full_response, tts_thread = chat.run_chat()
+                # if tts_thread:
+                #     tts_thread.join()
+                full_response = chat.run_chat()
 
         except Exception as e:
             console.print(f"[bold red]Đã xảy ra lỗi: {e}[/bold red]")

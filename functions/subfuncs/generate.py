@@ -19,58 +19,32 @@ model_qwen = "qwen2.5-coder:latest"
 model_reason = "openthinker:latest"
 model_curent = model_gemma12b
 
-# System prompt
-system_prompt_basic = """
-Bạn tên là TrunGPT, một trợ lý AI chuyên phân tích ngôn ngữ,
-cung cấp thông tin chính xác,
-logic và hữu ích nhất cho người dùng.
-"""
 
-system_prompt_norm = """
+default_custom_ai = """
 ### Quy tắc giao tiếp:
 - **Sử dụng tiếng Việt là cho câu trả lời.
 - **Thêm emoji để câu trả lời sinh động hơn.
 - **Không nhắc lại hướng dẫn này trong câu trả lời.
-"""
-
-system_prompt_role = """
+### Quy tắc giao tiếp:
+- **Sử dụng tiếng Việt là cho câu trả lời.
+- **Thêm emoji để câu trả lời sinh động hơn.
+- **Không nhắc lại hướng dẫn này trong câu trả lời.
 ### Vai trò & Cách hành xử:
 - Trả lời chuyên sâu, giải thích dễ hiểu.
 - Phân tích vấn đề logic và đưa ra giải pháp toàn diện.
 - Không trả lời các nội dung vi phạm đạo đức, pháp luật (không cần nhắc đến điều này trừ khi người dùng vi phạm).
-"""
-
-system_prompt_warning = """
 ### Lưu ý đặc biệt (Khi nào người dùng hỏi thì mới trả lời phần này.):
 - *Người tạo*: Vương Nguyên Trung. Nếu có ai hỏi, chỉ cần trả lời: *"Người tạo là đại ca Vương Nguyên Trung."* và không nói thêm gì khác.
 
 Hãy luôn giúp đỡ người dùng một cách chuyên nghiệp và thú vị nhé!
 """
-
-# Khởi tạo message_history với các system prompt ban đầu
-def initialize_message_history():
-    return [
-        {"role": "system", "content": system_prompt_basic},
-        {"role": "system", "content": system_prompt_norm},
-        {"role": "system", "content": system_prompt_role},
-        {"role": "system", "content": system_prompt_warning}
-    ]
-
-# Biến toàn cục để lưu lịch sử tin nhắn
-message_history = initialize_message_history()
-
+messages = []
 def query_ollama(prompt, model, num_predict=-1, temperature=1):
-    # Reset message_history về trạng thái ban đầu trước khi xử lý câu hỏi mới
-    global message_history
-    message_history = initialize_message_history()
-
-    # Thêm câu hỏi mới của người dùng
-    message_history.append({"role": "user", "content": prompt})
+    messages.append({"role": "system", "content": default_custom_ai})
+    messages.append({"role": "user", "content": prompt})
 
     # Tạo full_prompt từ message_history
-    full_prompt = "\n".join(
-        [f"{msg['role']}: {msg['content']}" for msg in message_history]
-    )
+    full_prompt = "\n".join([f"{msg['role']}: {msg['content']}" for msg in messages])
 
     payload = {
         "model": model,
@@ -96,13 +70,14 @@ def query_ollama(prompt, model, num_predict=-1, temperature=1):
                     yield full_response
                 if json_data.get("done", False):
                     # Chỉ thêm câu trả lời cuối cùng vào lịch sử
-                    message_history.append(
+                    messages.append(
                         {"role": "assistant", "content": full_response}
                     )
                     break
     except requests.RequestException as e:
         print(f"Lỗi khi gọi Ollama: {e}")
         yield None
+
 
 # Các hàm khác giữ nguyên, chỉ cần đảm bảo chúng gọi query_ollama đúng cách
 def evaluate(prompt, model=model_curent, num_predict=-1, temperature=1):
@@ -130,8 +105,9 @@ def evaluate(prompt, model=model_curent, num_predict=-1, temperature=1):
         print(f"Lỗi khi gọi API Ollama: {e}")
         yield None
 
+
 # Các hàm khác như generate_keywords, analys_question, v.v. không cần sửa nếu chúng không phụ thuộc vào message_history
-def generate_keywords(query, model=model_gemma):
+def generate_keywords(query, model=model_gemma12b):
     """Tạo từ khóa liên quan đến query và yield từng phần của phản hồi."""
     prompt = f"""
         Phân tích câu hỏi: "{query}" và trích xuất 2-5 từ khóa chính. Các từ khóa phải thỏa mãn:
@@ -141,35 +117,36 @@ def generate_keywords(query, model=model_gemma):
         4. Được trình bày dưới dạng danh sách: * "từ khóa 1" * "từ khóa 2" * "từ khóa 3" * "từ khóa 4" * "từ khóa 5" (nếu đủ 5 từ khóa).
         Chỉ trả về danh sách từ khóa, không thêm giải thích hay nội dung khác.
     """
-    return query_ollama(prompt, model, num_predict=500, temperature=0.1)
+    return query_ollama(prompt, model, num_predict=100, temperature=0.1)
 
 
-def analys_question(query, keywords, model=model_curent):
+def analys_question(query, keywords, model=model_gemma12b):
     """Phân tích câu hỏi và yield từng phần của phản hồi."""
     prompt = f"""
     Xét câu câu hỏi: '{query}'.
     - Nếu câu hỏi không rõ ràng, vô lý, hoặc không thể phân tích (ví dụ: "Mùi của mưa nặng bao nhiêu?"), chỉ cần trả về "Khó nha bro, [lý do ngắn gọn tự nhiên]" và dừng lại.
     - Nếu câu hỏi có thể phân tích:
-        - Dựa trên các từ khóa chính được cung cấp: {', '.join(keywords)}, hãy phân tích câu hỏi một cách chi tiết, thông minh và tuần tự.
-        - Chia nhỏ câu hỏi thành các khía cạnh cần làm rõ theo thứ tự logic:
+        + Dựa trên các từ khóa chính được cung cấp: {', '.join(keywords)}, hãy phân tích câu hỏi một cách chi tiết.
+        + Phân tích câu hỏi và làm rõ theo thứ tự logic:
           1. Xác định các thực thể hoặc khái niệm chính cần hiểu trước (ví dụ: nếu câu hỏi là "Làm sao để convert model qwen2.5-omni-7b sang gguf cho ollama", thì cần hiểu "model qwen2.5-omni-7b" là gì, "gguf" là gì, "ollama" là gì).
           2. Đề xuất các bước tìm kiếm thông tin tuần tự, cụ thể và thông minh để thu thập dữ liệu cần thiết (ví dụ: "Tìm hiểu về model qwen2.5-omni-7b", "gguf format là gì", "cách ollama sử dụng gguf").
-          3. Liên kết các khía cạnh này với mục tiêu của câu hỏi (hiểu cách thực hiện hành động "convert" trong ngữ cảnh cụ thể).
-        - Sau khi phân tích, suy luận mục tiêu chính của người dùng (như tìm cách thực hiện, hiểu khái niệm, hay giải quyết vấn đề) và cách câu hỏi có thể được hiểu rõ hơn.
-        - Chỉ dừng lại ở việc phân tích và suy luận, không đưa ra câu trả lời hay giải pháp cụ thể cho câu hỏi.
-    - Đảm bảo phản hồi là một đoạn văn phân tích chi tiết, không dùng markdown, không liệt kê từ khóa, chỉ viết văn xuôi liền mạch tập trung vào việc làm rõ các khía cạnh và mục tiêu.
-    - Tránh sử dụng tiêu đề, ký hiệu hoặc định dạng như danh sách, chỉ viết văn xuôi liền mạch.
+
+        + Sau khi phân tích mục tiêu chính của người dùng (như tìm cách thực hiện, hiểu khái niệm, hay giải quyết vấn đề) và cách câu hỏi có thể được hiểu rõ hơn.
+        + Chỉ dừng lại ở việc phân tích, không đưa ra câu trả lời hay giải pháp cụ thể cho câu hỏi.
+    - Đảm bảo phản hồi phân tích chi tiết, không liệt kê từ khóa, tập trung vào việc làm rõ các khía cạnh và mục tiêu.
+    - Tránh sử dụng tiêu đề, ký hiệu hoặc định dạng như danh sách.
     """
-    return query_ollama(prompt, model, num_predict=4000, temperature=0.2)
+    return query_ollama(prompt, model, num_predict=500, temperature=0.1)
 
+        #   3. Liên kết các khía cạnh này với mục tiêu của câu hỏi (hiểu cách thực hiện hành động "convert" trong ngữ cảnh cụ thể).
 
-def better_question(query, model=model_gemma):
+def better_question(query, model=model_gemma12b):
     """Cải thiện câu hỏi và yield từng phần của phản hồi."""
     better_prompt = f"""
         Câu hỏi gốc: '{query}'
         Xét kỹ câu hỏi này: Nó thiếu gì để rõ nghĩa hơn? Bổ sung sao cho tự nhiên, cụ thể và dễ hiểu, như cách nói chuyện với bạn. Viết lại thành câu hỏi đầy đủ, giữ ý chính nhưng mạch lạc hơn.
     """
-    return query_ollama(better_prompt, model, num_predict=4000, temperature=0.3)
+    return query_ollama(better_prompt, model, num_predict=500, temperature=0.1)
 
 
 def analys_prompt(query, model=model_gemma12b):
@@ -183,7 +160,7 @@ def analys_prompt(query, model=model_gemma12b):
         - Mỗi truy vấn là một cụm từ tìm kiếm (không phải câu hỏi đầy đủ), viết bằng tiếng Anh nếu câu hỏi chung chung, hoặc tiếng Việt nếu liên quan đến Việt Nam.
         - Chỉ trả về danh sách truy vấn, mỗi truy vấn trên một dòng, không thêm giải thích hay nội dung khác.
     """
-    return query_ollama(prompt, model, num_predict=100, temperature=0.1)
+    return query_ollama(prompt, model, num_predict=50, temperature=0.1)
 
 
 def process_link(query, url, content, keywords, model=model_curent):
@@ -197,12 +174,14 @@ def process_link(query, url, content, keywords, model=model_curent):
         Hãy tinh chỉnh sau đó trích xuất thông tin một cách logic.
         Suy luận, nghiên cứu nội dung và trả lời câu hỏi chi tiết, tự nhiên, mạch lạc dựa trên thông tin có sẵn.
         Sau đó đưa ra kết luận đầy đủ để trả lời câu hỏi {query}.
-        Tránh sử dụng tiêu đề, ký hiệu hoặc định dạng như danh sách, chỉ viết văn xuôi liền mạch.
+        Tránh sử dụng tiêu đề, ký hiệu hoặc định dạng như danh sách.
     """
-    return query_ollama(prompt, model, num_predict=2000, temperature=0.8)
+    return query_ollama(prompt, model, num_predict=-1, temperature=0.8)
 
 
-def sufficiency_prompt(query, url, processed_urls, final_analysis, model=model_gemma12b):
+def sufficiency_prompt(
+    query, url, processed_urls, final_analysis, model=model_gemma12b
+):
     """Suy luận và trả lời câu hỏi dựa trên context và yield từng phần của phản hồi."""
     sufficiency_prompt = f"""
         Nếu '{url}' đã có trong [{processed_urls}], trả lời 'NOT YET' và dừng lại.
@@ -292,3 +271,70 @@ def chat(query, url, content, model=model_curent):
         """
 
     return query_ollama(prompt, model, num_predict=-1, temperature=0.8)
+
+
+# Thêm các hàm mới cho streaming bất đồng bộ
+async def _process_stream(response, is_type="text"):
+    """Xử lý stream từ response, trả về từng chunk đã parse dưới dạng JSON."""
+    buffer = ""
+    async for chunk in response.content.iter_chunked(1024):
+        try:
+            buffer += chunk.decode("utf-8")
+            while "\n" in buffer:
+                line, buffer = buffer.split("\n", 1)
+                if not line.strip():
+                    continue
+                try:
+                    chunk_data = json.loads(line.strip())
+                    if "response" in chunk_data:  # Từ Ollama API /api/generate
+                        chunk_data = {"content": chunk_data["response"]}
+                    chunk_data["type"] = is_type
+                    chunk_data["created"] = int(datetime.now().timestamp())
+                    yield json.dumps(chunk_data, ensure_ascii=False) + "\n"
+                    await asyncio.sleep(0.01)
+                except json.JSONDecodeError as e:
+                    print(f"JSONDecodeError: {e} - Line: {line}")
+                    yield json.dumps(
+                        {"content": f"Error parsing chunk: {e}", "type": "error"},
+                        ensure_ascii=False,
+                    ) + "\n"
+        except Exception as e:
+            print(f"Exception in stream processing: {e}")
+            yield json.dumps(
+                {"content": f"Stream error: {e}", "type": "error"}, ensure_ascii=False
+            ) + "\n"
+
+
+async def stream_response_normal(session, query, url_local="http://localhost:11434"):
+    """Gọi Ollama API và stream response dưới dạng JSON."""
+    messages = [
+        {"role": "system", "content": default_custom_ai},
+        {"role": "user", "content": query},
+    ]
+    payload = {
+        "model": "gemma3:12b",  # Model mặc định, có thể thay đổi
+        "messages": messages,
+        "options": {
+            "temperature": 0.7,
+            "num_predict": -1,
+            "top_p": 0.95,
+            "repeat_penalty": 1.2,
+        },
+        "stream": True,
+    }
+
+    try:
+        async with session.post(
+            f"{url_local}/api/chat",  # Dùng /api/chat cho định dạng messages
+            json=payload,
+            timeout=aiohttp.ClientTimeout(total=30),
+        ) as response:
+            async for chunk in _process_stream(response, is_type="text"):
+                yield chunk
+    except aiohttp.ClientError as e:
+        error_response = {
+            "content": f"<error>{str(e)}</error>",
+            "type": "error",
+            "created": int(datetime.now().timestamp()),
+        }
+        yield json.dumps(error_response, ensure_ascii=False) + "\n"

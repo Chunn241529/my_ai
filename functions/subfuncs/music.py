@@ -89,10 +89,3 @@ def play_next():
     elif music_queue:
         next_song = music_queue.pop(0)
         play_music(next_song)
-
-# Ví dụ sử dụng riêng lẻ các hàm
-if __name__ == "__main__":
-    # Gọi từng hàm riêng lẻ
-    play_music("Tháp rơi tự do")  # Phát bài hát đầu tiên
-    add_to_queue("Havana")        # Thêm bài hát vào hàng chờ
-    toggle_loop()                 # Bật chế độ lặp lại

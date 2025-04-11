@@ -29,8 +29,8 @@ pip3 install duckduckgo_search
 pip3 install beautifulsoup4
 pip3 install yt-dlp pygame
 pip3 install youtube-search
-pip3 install -U openai-whisper
 pip3 install setuptools-rust
-
+pip3 install speechrecognition pyaudio
+pip3 install fastapi uvicorn pydantic aiohttp
 
 echo "Đã xong!"

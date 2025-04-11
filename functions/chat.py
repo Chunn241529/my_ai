@@ -114,24 +114,25 @@ class Chat:
                     final_answer += part
                     live.update(Markdown(f"\n{final_answer}"))
 
-            # Xử lý TTS
-            output_file = "assets/infore/clip.wav"
-            word_count = len(final_answer.split())
-            tts_thread = None
-            if word_count <= 500:
-                if not pygame.mixer.music.get_busy():
-                    success = run_viettts_synthesis(text=final_answer, output=output_file)
-                    if success:
-                        tts_thread = threading.Thread(
-                            target=self.play_speech, args=(output_file,), daemon=True
-                        )
-                        tts_thread.start()
-                else:
-                    console.print("")
+            # # Xử lý TTS
+            # output_file = "assets/infore/clip.wav"
+            # word_count = len(final_answer.split())
+            # tts_thread = None
+            # if word_count <= 500:
+            #     if not pygame.mixer.music.get_busy():
+            #         success = run_viettts_synthesis(text=final_answer, output=output_file)
+            #         if success:
+            #             tts_thread = threading.Thread(
+            #                 target=self.play_speech, args=(output_file,), daemon=True
+            #             )
+            #             tts_thread.start()
+            #     else:
+            #         console.print("")
 
 
         self.history_analys.append(final_answer)
-        return final_answer, tts_thread
+        # return final_answer, tts_thread
+        return final_answer
 
     def extract_music_url(self, query: str) -> str:
         """Trích xuất URL nhạc từ query."""
@@ -140,6 +141,7 @@ class Chat:
         return match.group(1).strip() if match else ""
 
     def run_chat(self) -> str:
-        final_answer, tts_thread = self.chat()
+        # final_answer, tts_thread = self.chat()
+        final_answer= self.chat()
         self.history_analys.clear()
-        return f"\n{final_answer}", tts_thread
+        return f"\n{final_answer}"

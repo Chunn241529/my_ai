@@ -18,15 +18,15 @@ console = Console()
 class DeepSearch:
     # random number
 
-    def random_number(self, min_val: int, max_val: int) -> int:
-        """Tạo số ngẫu nhiên trong khoảng min_val đến max_val."""
-        return random.randint(min_val, max_val)
+    # def random_number(self, min_val: int, max_val: int) -> int:
+    #     """Tạo số ngẫu nhiên trong khoảng min_val đến max_val."""
+    #     return random.randint(min_val, max_val)
 
     def __init__(
         self,
         initial_query: str,
-        max_iterations: int = 2,
-        max_results: int = random_number(5, 10, 25),
+        max_iterations: int = 4,
+        max_results: int = 10,
     ):
         """
         Khởi tạo đối tượng DeepSearch với câu hỏi ban đầu và các tham số cấu hình.
@@ -203,11 +203,10 @@ class DeepSearch:
                 self.false_count += 1
                 return False
             return True
-
+        console.print("[bold yellow]\nTìm kiếm thông tin: \n[/bold yellow]")
         final_analysis = ""
-        status_text = f"Tìm kiếm trong [{result['title']}]({url})"
         with Live(
-            Markdown(status_text),
+            Markdown(f"\nTìm kiếm trong [{result['title']}]({url})"),
             refresh_per_second=self.refresh_second,
             console=console,
             vertical_overflow=self.vertical_overflow,
@@ -225,7 +224,7 @@ class DeepSearch:
                         .replace("<|end_of_solution|>", "")
                         .replace("<|end|> ", "")
                     )
-                    live.update(Markdown(f"{status_text}\n\n{clean_final_analysis}"))
+                    live.update(Markdown(f"\nTìm kiếm trong [{result['title']}]({url})\n\n{clean_final_analysis}"))
 
         self.processed_urls.add(url)
         sufficiency_stream = sufficiency_prompt(
@@ -309,6 +308,7 @@ class DeepSearch:
                         full_evaluation += part
                 console.print("\n")
                 if "đã đủ" in full_evaluation.lower():
+                    console.print("[bold cyan]\nSuy luận vấn đề: \n[/bold cyan]")
                     full_reason = ""
                     with Live(
                         Markdown("\nĐang suy luận..\n"),
@@ -354,6 +354,7 @@ class DeepSearch:
 
     def summarize(self) -> str:
         """Tổng hợp các câu trả lời đã thu thập."""
+        console.print("[bold cyan]\nKết luận: \n[/bold cyan]")
         with Live(
             Markdown("Chờ xíu...🖐️"),
             refresh_per_second=self.refresh_second,
