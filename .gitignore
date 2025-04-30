@@ -3,3 +3,7 @@ functions/__pycache__
 clean.sh
 .env
 modules
+models
+assets/docs.txt
+cli/logs
+web/logs

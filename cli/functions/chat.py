@@ -11,11 +11,12 @@ from rich.live import Live
 from typing import List
 
 # Giả định các module này đã được định nghĩa
-from functions.subfuncs.commands import *
-from functions.subfuncs.file import *
-from functions.subfuncs.generate import *
-from functions.subfuncs.tts import run_viettts_synthesis
-from functions.subfuncs.music import play_music
+from cli.functions.subfuncs.commands import *
+from cli.functions.subfuncs.file import *
+from cli.functions.subfuncs.generate import *
+from cli.functions.subfuncs.tts import run_viettts_synthesis
+from cli.functions.subfuncs.music import play_music
+from utils.helper.web_utils import *
 
 console = Console()
 
@@ -28,16 +29,28 @@ class Chat:
         self.history_analys: List[str] = []
         self.refresh_second = 10
         self.vertical_overflow = "ellipsis"
-        self.only_url = self.extract_url_from_input(initial_query) or ""
+        self.only_url = extract_url_from_input(self.initial_query) or ""
         os.environ["JAX_PLATFORM_NAME"] = "cpu"
         # Lock để đồng bộ giữa TTS và music
         self.audio_lock = threading.Lock()
 
-    def extract_url_from_input(self, input_text: str) -> str:
-        """Trích xuất URL đầu tiên từ chuỗi đầu vào của người dùng."""
-        URL_PATTERN = r"https?://(?:[-\w.]|(?:%[\da-fA-F]{2}))+[^\s]*"
-        match = re.search(URL_PATTERN, input_text)
-        return match.group(0) if match else ""
+    # def extract_url_from_input(self, input_text: str) -> str:
+    #     """Trích xuất URL đầu tiên từ chuỗi đầu vào của người dùng."""
+    #     URL_PATTERN = r"https?://(?:[-\w.]|(?:%[\da-fA-F]{2}))+[^\s]*"
+    #     match = re.search(URL_PATTERN, input_text)
+    #     return match.group(0) if match else ""
+
+    # def extract_image_path(self, input_text: str) -> str:
+    #     """Trích xuất đường dẫn file ảnh từ chuỗi đầu vào, hỗ trợ Windows, Linux, macOS."""
+    #     IMAGE_PATH_PATTERN = r"(?:(?:[a-zA-Z]:[\\/])|\/)?[\w\-\.\/\\]*(?:[\w\-]+\.(?:jpg|jpeg|png|gif|bmp|webp))"
+    #     match = re.search(IMAGE_PATH_PATTERN, input_text, re.IGNORECASE)
+    #     return match.group(0) if match else ""
+
+    # def extract_image_url(self, input_text: str) -> str:
+    #     """Trích xuất URL ảnh đầu tiên từ chuỗi đầu vào của người dùng."""
+    #     IMAGE_URL_PATTERN = r"https?://(?:[-\w.]|(?:%[\da-fA-F]{2}))+[^\s]*\.(?:jpg|jpeg|png|gif|bmp|webp)"
+    #     match = re.search(IMAGE_URL_PATTERN, input_text, re.IGNORECASE)
+    #     return match.group(0) if match else ""
 
     def fallback_search(self, query: str) -> str:
         with DDGS() as ddgs:
@@ -82,7 +95,12 @@ class Chat:
 
     def chat(self) -> str:
         """Tổng hợp các câu trả lời đã thu thập."""
-        content = self.extract_content(self.only_url) or ""
+
+
+        image_path = extract_image_path(self.initial_query) or ""
+        image_url = extract_image_url(self.initial_query) or ""
+
+        content = extract_content(self.only_url) or ""
 
         if any(
             keyword in content.lower()
@@ -105,7 +123,7 @@ class Chat:
             vertical_overflow=self.vertical_overflow,
         ) as live:
             summary_stream = chat(
-                query=self.initial_query, url=self.only_url, content=content
+                query=self.initial_query, url=self.only_url, image_path=image_path, url_image=image_url ,content=content
             )
 
             final_answer = ""

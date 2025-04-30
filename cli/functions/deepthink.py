@@ -5,9 +5,9 @@ from rich.live import Live
 from typing import List
 
 # Giả định các module này đã được định nghĩa
-from functions.subfuncs.commands import *
-from functions.subfuncs.file import *
-from functions.subfuncs.generate import *
+from cli.functions.subfuncs.commands import *
+from cli.functions.subfuncs.file import *
+from cli.functions.subfuncs.generate import *
 
 console = Console()
 
@@ -35,12 +35,12 @@ class DeepThink:
         """Suy luận"""
 
         with Live(
-            Markdown("Suy luận..."),
+            Markdown("Đang suy luận..."),
             refresh_per_second=self.refresh_second,
             console=console,
             vertical_overflow=self.vertical_overflow,
         ) as live:
-            think = reason_with_ollama(self.initial_query, context="")
+            think = reason_with_ollama(self.initial_query, context="",model="gemma3:12b")
             full_thinking = ""
             for part in think:
                 if part is not None:
@@ -64,7 +64,7 @@ class DeepThink:
             console=console,
             vertical_overflow=self.vertical_overflow,
         ) as live:
-            summary_stream = summarize_answers(self.initial_query, self.history_analys)
+            summary_stream = summarize_answers(self.initial_query, self.history_analys,model="gemma3:12b")
             final_answer = ""
 
             for part in summary_stream:
@@ -76,7 +76,7 @@ class DeepThink:
 
     def run_think(self) -> str:
         self.thinking()
-        console.clear()
+        console.print("\n\n")
         final_answer = self.summarize_think()
         self.history_analys.clear()
         return f"\n{final_answer}"
